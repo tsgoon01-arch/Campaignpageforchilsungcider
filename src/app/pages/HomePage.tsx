@@ -13,10 +13,8 @@ const STEPS = [
 ];
 
 const PRIZE_BADGES = [
-  { stamps: 2,  emoji: '🥤', label: 'TIER 1', desc: '사이다 기프티콘', color: '#0057B8', bg: '#EFF6FF' },
-  { stamps: 5,  emoji: '🎁', label: 'TIER 2', desc: '칠성 굿즈 세트',  color: '#2BAE4E', bg: '#E8F8EF' },
-  { stamps: 7,  emoji: '🍽️', label: 'TIER 3', desc: '식사권 3만원권',  color: '#D97706', bg: '#FFFBEB' },
-  { stamps: 10, emoji: '🏆', label: 'TIER 4', desc: '추첨 고가 경품',  color: '#7B2D9C', bg: '#F3E8FF' },
+  { stamps: 4,  emoji: '👕', label: '4스탬프', desc: '티셔츠 77명 추첨', color: '#EF4444', bg: '#FEF2F2' },
+  { stamps: 7,  emoji: '🚂', label: '7스탬프', desc: '코레일 여행권 추첨', color: '#E8A000', bg: '#FFFBEB' },
 ];
 
 const GREEN    = '#2BAE4E';
@@ -36,55 +34,26 @@ const HERO_SLIDES = [
       <>
         칠성사이다 1+1 교환권 또는{' '}
         <strong style={{ color: YELLOW, fontWeight: 700 }}>한정판 티셔츠(50개)</strong>를 받아가세요!<br />
-        매장 방문 후 QR 스캔 · 하루 2번 참여 가능!
+        매장 방문 후 QR 스캔 · <strong style={{ color: YELLOW }}>1회 참여 + 다시 돌리기 2회!</strong>
       </>
     ),
     isRoulette: true,
   },
   {
-    bg: 'linear-gradient(135deg, #062A14 0%, #0D3D1F 50%, #041A0C 100%)',
-    patternColor: 'rgba(43,174,78,0.08)',
-    eyebrow: '한국인의 소울 드링크 × 소울 푸드',
-    line1: '김밥엔',
-    line2: '사이다!',
+    bg: 'linear-gradient(135deg, #0A1F12 0%, #1A3A22 50%, #0A1F12 100%)',
+    patternColor: 'rgba(43,174,78,0.07)',
+    eyebrow: '🎁 스탬프 달성 시 자동 추첨 응모!',
+    line1: '스탬프',
+    line2: '리워드!',
     desc: (
       <>
-        서울 김밥 맛집 10곳을 방문하고 스탬프를 모아<br />
-        <strong style={{ color: YELLOW, fontWeight: 600 }}>갤럭시북·아이패드·다이슨</strong> 경품을 받아가세요!
+        4곳 방문 <strong style={{ color: YELLOW, fontWeight: 700 }}>👕 티셔츠 77명 추첨</strong> · 7곳 방문{' '}
+        <strong style={{ color: '#86EFAC', fontWeight: 700 }}>🚂 코레일 여행권 추첨</strong>
+        <br />김밥집을 방문하면 스탬프가 자동으로 쌓여요!
       </>
     ),
     isRoulette: false,
-    visuals: ['🍙', '🥤', '🍱', '🥢', '⭐'],
-  },
-  {
-    bg: 'linear-gradient(135deg, #0D1433 0%, #1a1f5e 50%, #080d28 100%)',
-    patternColor: 'rgba(0,87,184,0.1)',
-    eyebrow: '친구들과 함께라면 더 맛있어!',
-    line1: '같이 먹는',
-    line2: '김밥 타임!',
-    desc: (
-      <>
-        매장 300m 이내에서 GPS 위치 인증만 하면<br />
-        <strong style={{ color: YELLOW, fontWeight: 600 }}>스탬프 자동 적립</strong> + 리워드 응모 자격까지!
-      </>
-    ),
-    isRoulette: false,
-    visuals: ['📍', '🗺️', '👫', '🎯', '✨'],
-  },
-  {
-    bg: 'linear-gradient(135deg, #1A0D2E 0%, #2D1A4E 50%, #110820 100%)',
-    patternColor: 'rgba(123,45,156,0.1)',
-    eyebrow: '오늘 뭐 먹지? 칠성이랑 맛집 탐방!',
-    line1: '맛있으면',
-    line2: '칠성!',
-    desc: (
-      <>
-        칠성사이다 제로와 함께라면 모든 음식이 더 맛있어.<br />
-        <strong style={{ color: YELLOW, fontWeight: 600 }}>10곳 완주</strong>하고 대경품 도전해봐요!
-      </>
-    ),
-    isRoulette: false,
-    visuals: ['🏆', '🎁', '🌟', '🎉', '💎'],
+    isReward: true,
   },
 ];
 
@@ -333,6 +302,60 @@ function HeroSection({ stampCount }: { stampCount: number }) {
                   <p style={{ color: 'white', fontSize: 11, fontWeight: 800 }}>👕 한정판 티셔츠</p>
                 </motion.div>
               </div>
+            ) : current.isReward ? (
+              /* ─── Reward slide visual ─── */
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {/* 4스탬프 card */}
+                <motion.div
+                  initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
+                  animate2={{ x: [0, -5, 0], y: [0, -6, 0] }}
+                  style={{
+                    background: 'rgba(239,68,68,0.18)',
+                    border: '1.5px solid rgba(239,68,68,0.55)',
+                    backdropFilter: 'blur(10px)',
+                    borderRadius: 18, padding: '16px 20px', minWidth: 190,
+                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 36 }}>👕</span>
+                    <div>
+                      <p style={{ color: '#FCA5A5', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', marginBottom: 2 }}>4스탬프 리워드</p>
+                      <p style={{ color: 'white', fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>한정판 티셔츠</p>
+                      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>77명 추첨</p>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 10, padding: '5px 10px', borderRadius: 8, backgroundColor: 'rgba(239,68,68,0.3)', textAlign: 'center' }}>
+                    <p style={{ color: '#FCA5A5', fontSize: 10, fontWeight: 700 }}>🔥 칠성사이다 × 김밥대장 콜라보</p>
+                  </div>
+                </motion.div>
+
+                {/* 7스탬프 card */}
+                <motion.div
+                  initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.3 }}
+                  style={{
+                    background: 'rgba(232,160,0,0.18)',
+                    border: '1.5px solid rgba(232,160,0,0.55)',
+                    backdropFilter: 'blur(10px)',
+                    borderRadius: 18, padding: '16px 20px', minWidth: 190,
+                  }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 36 }}>🚂</span>
+                    <div>
+                      <p style={{ color: '#FCD34D', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', marginBottom: 2 }}>7스탬프 리워드</p>
+                      <p style={{ color: 'white', fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>코레일 여행권</p>
+                      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>KTX 포함 추첨</p>
+                    </div>
+                  </div>
+                  <div style={{ marginTop: 10, padding: '5px 10px', borderRadius: 8, backgroundColor: 'rgba(232,160,0,0.3)', textAlign: 'center' }}>
+                    <p style={{ color: '#FCD34D', fontSize: 10, fontWeight: 700 }}>🚄 KTX 왕복 10명 · 일반 20명</p>
+                  </div>
+                </motion.div>
+
+                {/* CTA arrow */}
+                <motion.div animate={{ y: [0, -4, 0] }} transition={{ duration: 2, repeat: Infinity }}
+                  style={{ textAlign: 'center' }}>
+                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600 }}>스탬프 달성 시 자동 응모 ↑</p>
+                </motion.div>
+              </div>
             ) : (
               current.visuals && <FloatingEmojis emojis={current.visuals} />
             )}
@@ -367,120 +390,58 @@ function HeroSection({ stampCount }: { stampCount: number }) {
             position: 'relative', zIndex: 5,
             maxWidth: '52%',
           }}>
-            <AnimatePresence mode="wait">
-              <motion.div key={`text-${slide}`}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
-              >
-                <p style={{ color: YELLOW, fontSize: 'clamp(11px,1.8vw,13px)', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '8px', textTransform: 'uppercase' }}>
-                  {current.eyebrow}
-                </p>
-
-                <div style={{ marginBottom: '14px' }}>
-                  <span style={{ display: 'block', fontFamily: BHS, fontSize: 'clamp(44px,8vw,100px)', color: 'white', letterSpacing: '-2px', lineHeight: 0.95 }}>
-                    {current.line1}
-                  </span>
-                  <motion.span
-                    animate={{ color: [GREEN, '#1DBF5B', YELLOW, GREEN] }}
-                    transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                    style={{ display: 'block', fontFamily: BHS, fontSize: 'clamp(44px,8vw,100px)', letterSpacing: '-2px', lineHeight: 1.0 }}
-                  >
-                    {current.line2}
-                  </motion.span>
-                </div>
-
-                <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 'clamp(13px,1.8vw,15px)', fontWeight: 400, maxWidth: '400px', lineHeight: 1.7, marginBottom: '22px' }}>
-                  {current.desc}
-                </p>
-
-                {/* CTA buttons */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {current.isRoulette ? (
-                    <>
-                      <Link to="/event" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        background: `linear-gradient(135deg, ${YELLOW}, #FFA000)`,
-                        color: '#1A1A1A', padding: '12px 22px', borderRadius: '100px',
-                        fontWeight: 800, fontSize: '14px', textDecoration: 'none',
-                        boxShadow: '0 0 24px rgba(255,215,64,0.45)',
-                      }}>🎰 룰렛 돌리러 가기!</Link>
-
-                      <Link to="/map" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        backgroundColor: GREEN, color: '#fff',
-                        padding: '12px 22px', borderRadius: '100px',
-                        fontWeight: 700, fontSize: '14px', textDecoration: 'none',
-                      }}>🗺️ 참여 매장 찾기</Link>
-
-                      <Link to="/mypage" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff',
-                        padding: '12px 22px', borderRadius: '100px',
-                        fontWeight: 600, fontSize: '14px', textDecoration: 'none',
-                        border: '1.5px solid rgba(255,255,255,0.3)',
-                        backdropFilter: 'blur(6px)',
-                      }}>🎫 내 교환권</Link>
-                    </>
-                  ) : (
-                    <>
-                      <Link to="/map" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        backgroundColor: YELLOW, color: '#1A1A1A',
-                        padding: '12px 22px', borderRadius: '100px',
-                        fontWeight: 700, fontSize: '14px', textDecoration: 'none',
-                      }}>🗺️ 김밥집 지도 보기</Link>
-
-                      <Link to="/stamps" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        backgroundColor: GREEN, color: '#fff',
-                        padding: '12px 22px', borderRadius: '100px',
-                        fontWeight: 700, fontSize: '14px', textDecoration: 'none',
-                      }}>🎯 내 스탬프{stampCount > 0 ? ` (${stampCount}/10)` : ''}</Link>
-
-                      <Link to="/prizes" style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '6px',
-                        backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff',
-                        padding: '12px 22px', borderRadius: '100px',
-                        fontWeight: 600, fontSize: '14px', textDecoration: 'none',
-                        border: '1.5px solid rgba(255,255,255,0.3)',
-                        backdropFilter: 'blur(6px)',
-                      }}>🎁 리워드 보기</Link>
-                    </>
-                  )}
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-
-          {/* Prev / Next arrows only */}
-          <button onClick={goPrev}
-            className="hidden sm:flex absolute left-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
-            style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff' }}
-            aria-label="이전">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6" />
-            </svg>
-          </button>
-          <button onClick={goNext}
-            className="hidden sm:flex absolute right-4 top-1/2 -translate-y-1/2 z-10 w-10 h-10 items-center justify-center rounded-full transition-colors hover:bg-white/10"
-            style={{ background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(6px)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff' }}
-            aria-label="다음">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-          </button>
-
-          {/* Bottom progress bar only (no dots) */}
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: '3px', backgroundColor: 'rgba(255,255,255,0.1)', zIndex: 10 }}>
             <motion.div
-              key={slide}
-              initial={{ width: '0%' }}
-              animate={{ width: '100%' }}
-              transition={{ duration: 5.5, ease: 'linear' }}
-              style={{ height: '100%', backgroundColor: YELLOW }}
-            />
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <p style={{ color: YELLOW, fontSize: 'clamp(11px,1.8vw,13px)', fontWeight: 700, letterSpacing: '1.5px', marginBottom: '8px', textTransform: 'uppercase' }}>
+                {current.eyebrow}
+              </p>
+
+              <div style={{ marginBottom: '14px' }}>
+                <span style={{ display: 'block', fontFamily: BHS, fontSize: 'clamp(44px,8vw,100px)', color: 'white', letterSpacing: '-2px', lineHeight: 0.95 }}>
+                  {current.line1}
+                </span>
+                <motion.span
+                  animate={{ color: [GREEN, '#1DBF5B', YELLOW, GREEN] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+                  style={{ display: 'block', fontFamily: BHS, fontSize: 'clamp(44px,8vw,100px)', letterSpacing: '-2px', lineHeight: 1.0 }}
+                >
+                  {current.line2}
+                </motion.span>
+              </div>
+
+              <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: 'clamp(13px,1.8vw,15px)', fontWeight: 400, maxWidth: '400px', lineHeight: 1.7, marginBottom: '22px' }}>
+                {current.desc}
+              </p>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                <Link to="/event" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  background: `linear-gradient(135deg, ${YELLOW}, #FFA000)`,
+                  color: '#1A1A1A', padding: '12px 22px', borderRadius: '100px',
+                  fontWeight: 800, fontSize: '14px', textDecoration: 'none',
+                  boxShadow: '0 0 24px rgba(255,215,64,0.45)',
+                }}>🎰 룰렛 돌리러 가기!</Link>
+
+                <Link to="/map" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  backgroundColor: GREEN, color: '#fff',
+                  padding: '12px 22px', borderRadius: '100px',
+                  fontWeight: 700, fontSize: '14px', textDecoration: 'none',
+                }}>🗺️ 참여 매장 찾기</Link>
+
+                <Link to="/mypage" style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff',
+                  padding: '12px 22px', borderRadius: '100px',
+                  fontWeight: 600, fontSize: '14px', textDecoration: 'none',
+                  border: '1.5px solid rgba(255,255,255,0.3)',
+                  backdropFilter: 'blur(6px)',
+                }}>🎫 내 교환권</Link>
+              </div>
+            </motion.div>
           </div>
         </motion.div>
       </AnimatePresence>
@@ -493,7 +454,7 @@ function HeroSection({ stampCount }: { stampCount: number }) {
           style={{ display: 'flex', whiteSpace: 'nowrap' }}>
           {[...Array(2)].map((_, rep) => (
             <span key={rep} style={{ display: 'inline-flex', alignItems: 'center', gap: '28px', paddingRight: '28px' }}>
-              {['🎰 룰렛 이벤트 진행 중', '칠성사이다 × 스탬프 투어', '김밥엔 사이다!', '서울 김밥 핫플 10곳', '하루 2번 룰렛 참여 가능', '2026 김밥대장 로드'].map((txt, i) => (
+              {['🎰 룰렛 이벤트 진행 중', '칠성사이다 × 스탬프 투어', '김밥엔 사이다!', '서울 김밥 핫플 10곳', '매장당 1회 참여 + 다시 돌리기 2회', '2026 김밥대장 로드', '👕 4스탬프 티셔츠 추첨', '🚂 7스탬프 코레일 여행권'].map((txt, i) => (
                 <span key={i} style={{ fontSize: '11px', fontWeight: 700, color: i % 2 === 0 ? YELLOW : GREEN, letterSpacing: '1.2px' }}>
                   ★ {txt}
                 </span>

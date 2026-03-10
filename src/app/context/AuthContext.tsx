@@ -27,7 +27,12 @@ interface AuthContextType {
   accessToken: string | null;
 }
 
-const AuthContext = createContext<AuthContextType | null>(null);
+// Persist context across HMR re-evaluations so the same object is reused
+const AUTH_CTX_KEY = '__chilsung_auth_ctx__';
+if (!(globalThis as any)[AUTH_CTX_KEY]) {
+  (globalThis as any)[AUTH_CTX_KEY] = createContext<AuthContextType | null>(null);
+}
+const AuthContext = (globalThis as any)[AUTH_CTX_KEY] as React.Context<AuthContextType | null>;
 export { AuthContext };
 
 // ── Local session helpers ─────────────────────────────────────────────────────

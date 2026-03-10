@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
@@ -8,9 +8,12 @@ const GREEN = '#2BAE4E';
 const YELLOW = '#FFD740';
 const DEVICE_ID_KEY = 'chilsung-device-id';
 const PENDING_PRIZE_KEY = 'pending-roulette-prize';
-const MAX_SPINS = 2;
 
-// ── Device ID ────────────────────────────────────────────────────────────────
+// 1 official + 2 re-spins = 3 total per store per day
+const MAX_SPINS = 3;
+const MAX_RESPINS = 2;
+
+// ── Device / Auth helpers ─────────────────────────────────────────────────────
 function getOrCreateDeviceId(): string {
   let id = localStorage.getItem(DEVICE_ID_KEY);
   if (!id) {
@@ -19,7 +22,6 @@ function getOrCreateDeviceId(): string {
   }
   return id;
 }
-
 function getAuthToken(): string | null {
   try {
     const raw = localStorage.getItem('chilsung-auth-session');
@@ -27,30 +29,28 @@ function getAuthToken(): string | null {
     return JSON.parse(raw)?.access_token ?? null;
   } catch { return null; }
 }
+function isLoggedIn(): boolean { return !!getAuthToken(); }
 
-function isLoggedIn(): boolean {
-  return !!getAuthToken();
+// Short voucher code from full id
+function shortCode(id: string) {
+  return id.replace(/-/g, '').slice(-8).toUpperCase();
 }
 
-// ── Visual Roulette Segments (8칸 다양하게) ──────────────────────────────────
-// 실제 경품: soda-1plus1(🥤×6칸), tshirt(👕×2칸)
+// ── Wheel segments (updated prize IDs) ───────────────────────────────────────
 const SEGMENTS = [
-  { label: '사이다\n1+1', emoji: '🥤', color: '#0057B8', prizeId: 'soda-1plus1' },
-  { label: '한정판\n티셔츠', emoji: '👕', color: '#EF4444', prizeId: 'tshirt' },
-  { label: '사이다\n1+1', emoji: '🥤', color: '#2BAE4E', prizeId: 'soda-1plus1' },
-  { label: '사이다\n1+1', emoji: '🥤', color: '#7C3AED', prizeId: 'soda-1plus1' },
-  { label: '사이다\n1+1', emoji: '🥤', color: '#0369A1', prizeId: 'soda-1plus1' },
-  { label: '한정판\n티셔츠', emoji: '👕', color: '#B91C1C', prizeId: 'tshirt' },
-  { label: '사이다\n1+1', emoji: '🥤', color: '#059669', prizeId: 'soda-1plus1' },
-  { label: '사이다\n1+1', emoji: '🥤', color: '#D97706', prizeId: 'soda-1plus1' },
+  { emoji: '🥤', color: '#0057B8', prizeId: 'soda-free' },
+  { emoji: '👕', color: '#EF4444', prizeId: 'tshirt' },
+  { emoji: '🥤', color: '#2BAE4E', prizeId: 'soda-free' },
+  { emoji: '🥤', color: '#7C3AED', prizeId: 'soda-free' },
+  { emoji: '🥤', color: '#0369A1', prizeId: 'soda-free' },
+  { emoji: '👕', color: '#B91C1C', prizeId: 'tshirt' },
+  { emoji: '🥤', color: '#059669', prizeId: 'soda-free' },
+  { emoji: '🥤', color: '#D97706', prizeId: 'soda-free' },
 ];
-
 const SEGMENT_COUNT = SEGMENTS.length;
 const SEGMENT_ANGLE = 360 / SEGMENT_COUNT;
-
-// prizeId → segment indices
 const PRIZE_SEGMENTS: Record<string, number[]> = {
-  'soda-1plus1': [0, 2, 3, 4, 6, 7],
+  'soda-free': [0, 2, 3, 4, 6, 7],
   'tshirt': [1, 5],
 };
 
@@ -61,7 +61,6 @@ interface PrizeResult {
   description: string;
   color: string;
 }
-
 interface SpinRecord {
   prizeId: string;
   prizeName: string;
@@ -73,16 +72,11 @@ interface SpinRecord {
   timestamp: string;
 }
 
-// ── Wheel Component ───────────────────────────────────────────────────────────
+// ── Roulette Wheel ────────────────────────────────────────────────────────────
 function RouletteWheel({ rotation, isSpinning }: { rotation: number; isSpinning: boolean }) {
-  const size = 300;
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 4;
-
+  const size = 300; const cx = size / 2; const cy = size / 2; const r = size / 2 - 4;
   return (
     <div className="relative select-none" style={{ width: size + 20, height: size + 20 }}>
-      {/* Pointer */}
       <div className="absolute z-20" style={{
         top: -4, left: '50%', transform: 'translateX(-50%)',
         width: 0, height: 0,
@@ -90,206 +84,266 @@ function RouletteWheel({ rotation, isSpinning }: { rotation: number; isSpinning:
         borderTop: '32px solid #EF4444',
         filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.5))',
       }} />
-
-      {/* Glow ring */}
       <div className="absolute inset-0 rounded-full" style={{
         margin: 10,
         boxShadow: isSpinning
           ? `0 0 50px 15px rgba(255,215,64,0.7), 0 0 100px 30px rgba(43,174,78,0.4)`
           : `0 0 20px 4px rgba(43,174,78,0.3)`,
-        borderRadius: '50%', transition: 'box-shadow 0.4s',
+        transition: 'box-shadow 0.4s',
       }} />
-
       <motion.div className="absolute" style={{ top: 10, left: 10, width: size, height: size }}
         animate={{ rotate: rotation }}
-        transition={isSpinning ? { duration: 4.5, ease: [0.1, 0.9, 0.3, 1] } : { duration: 0 }}
-      >
+        transition={isSpinning ? { duration: 4.5, ease: [0.1, 0.9, 0.3, 1] } : { duration: 0 }}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <circle cx={cx} cy={cy} r={r} fill="#0D1B2A" />
           {SEGMENTS.map((seg, i) => {
-            const startAngle = (i * SEGMENT_ANGLE - 90) * (Math.PI / 180);
-            const endAngle = ((i + 1) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
-            const x1 = cx + r * Math.cos(startAngle);
-            const y1 = cy + r * Math.sin(startAngle);
-            const x2 = cx + r * Math.cos(endAngle);
-            const y2 = cy + r * Math.sin(endAngle);
-            const midAngle = ((i + 0.5) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
-            const textR = r * 0.66;
-            const tx = cx + textR * Math.cos(midAngle);
-            const ty = cy + textR * Math.sin(midAngle);
-            const textRotation = (i + 0.5) * SEGMENT_ANGLE;
+            const sa = (i * SEGMENT_ANGLE - 90) * (Math.PI / 180);
+            const ea = ((i + 1) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
+            const x1 = cx + r * Math.cos(sa); const y1 = cy + r * Math.sin(sa);
+            const x2 = cx + r * Math.cos(ea); const y2 = cy + r * Math.sin(ea);
+            const ma = ((i + 0.5) * SEGMENT_ANGLE - 90) * (Math.PI / 180);
+            const tr = r * 0.66;
+            const tx = cx + tr * Math.cos(ma); const ty = cy + tr * Math.sin(ma);
             return (
               <g key={i}>
                 <path d={`M ${cx} ${cy} L ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2} Z`}
                   fill={seg.color} stroke="rgba(255,255,255,0.15)" strokeWidth={2} />
-                <g transform={`translate(${tx}, ${ty}) rotate(${textRotation})`}>
-                  <text textAnchor="middle" dominantBaseline="middle"
-                    fill="white" fontSize="15" fontWeight="800"
-                    fontFamily="'Pretendard Variable', sans-serif"
-                    style={{ userSelect: 'none' }}>
-                    {seg.emoji}
-                  </text>
+                <g transform={`translate(${tx},${ty}) rotate(${(i + 0.5) * SEGMENT_ANGLE})`}>
+                  <text textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="15" fontWeight="800"
+                    style={{ userSelect: 'none' }}>{seg.emoji}</text>
                 </g>
               </g>
             );
           })}
-          {/* Center */}
           <circle cx={cx} cy={cy} r={30} fill="white" />
           <circle cx={cx} cy={cy} r={26} fill={GREEN} />
-          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-            fontSize="15" fontWeight="900" fill="white">七</text>
+          <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle" fontSize="15" fontWeight="900" fill="white">七</text>
         </svg>
       </motion.div>
     </div>
   );
 }
 
-// ── Prize Modal ───────────────────────────────────────────────────────────────
+// ── Spin Chance Badge ─────────────────────────────────────────────────────────
+function SpinChanceBadge({ spinsToday }: { spinsToday: number }) {
+  const officialDone = spinsToday >= 1;
+  const respinsUsed = Math.max(0, spinsToday - 1);
+  const respinsLeft = MAX_RESPINS - respinsUsed;
+  return (
+    null
+  );
+}
+
+// ── Prize Result Modal ────────────────────────────────────────────────────────
 function PrizeModal({
-  prize, canSpinAgain, onClose, onSpinAgain, onGoMyPage, onLoginToClaim, isLoggedInUser, tshirtRemaining
+  prize, couponId, storeId, storeName, spinsToday, tshirtRemaining,
+  isLoggedInUser, onClose, onSpinAgain, onGoMyPage, onLoginToClaim,
 }: {
   prize: PrizeResult;
-  canSpinAgain: boolean;
+  couponId: string;
+  storeId: string;
+  storeName: string;
+  spinsToday: number; // AFTER this spin
+  tshirtRemaining: number;
+  isLoggedInUser: boolean;
   onClose: () => void;
   onSpinAgain: () => void;
   onGoMyPage: () => void;
   onLoginToClaim: () => void;
-  isLoggedInUser: boolean;
-  tshirtRemaining: number;
 }) {
+  const [step, setStep] = useState<'reveal' | 'claimed'>('reveal');
+  const respinsLeft = spinsToday >= 1 ? MAX_RESPINS - (spinsToday - 1) : 0;
   const isTshirt = prize.id === 'tshirt';
+  const spinLabel = spinsToday === 1 ? '🎰 공식 참여' : `🔄 다시 돌리기 ${spinsToday - 1}회차`;
+  const code = shortCode(couponId);
+
+  const handleClaim = () => {
+    setStep('claimed');
+  };
 
   return (
     <motion.div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-4 pb-0 sm:pb-4"
       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      style={{ background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)' }}
-    >
+      style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)' }}>
       <motion.div
         className="relative bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
         initial={{ y: 120, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 120, opacity: 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 24 }}
-      >
-        {/* 당첨 배너 */}
-        <div className="px-6 pt-8 pb-6 text-center relative overflow-hidden"
-          style={{ background: `linear-gradient(135deg, ${prize.color}, ${prize.color}cc)` }}>
-          {/* Confetti dots */}
-          {[...Array(6)].map((_, i) => (
-            <motion.div key={i}
-              className="absolute w-2.5 h-2.5 rounded-full"
-              style={{
-                backgroundColor: i % 2 === 0 ? YELLOW : 'white',
-                left: `${10 + i * 14}%`, top: '20%', opacity: 0.6,
-              }}
-              animate={{ y: [0, -20, 0], opacity: [0.6, 1, 0.6] }}
-              transition={{ duration: 1.2, delay: i * 0.15, repeat: Infinity }}
-            />
+        transition={{ type: 'spring', stiffness: 280, damping: 26 }}>
+
+        {/* Banner */}
+        <div className="relative overflow-hidden"
+          style={{ background: step === 'claimed'
+            ? `linear-gradient(135deg, ${GREEN}, #00C853)`
+            : `linear-gradient(135deg, ${prize.color}, ${prize.color}99)`, paddingBottom: '24px' }}>
+          {/* confetti */}
+          {[...Array(8)].map((_, i) => (
+            <motion.div key={i} className="absolute w-2 h-2 rounded-full"
+              style={{ backgroundColor: i % 2 === 0 ? YELLOW : 'white', left: `${8 + i * 12}%`, top: '15%', opacity: 0.7 }}
+              animate={{ y: [0, -18, 0], opacity: [0.7, 1, 0.7] }}
+              transition={{ duration: 1 + i * 0.12, repeat: Infinity, delay: i * 0.1 }} />
           ))}
-          <motion.div
-            initial={{ scale: 0, rotate: -30 }} animate={{ scale: 1, rotate: 0 }}
-            transition={{ type: 'spring', stiffness: 320, delay: 0.1 }}
-            className="text-7xl mb-3">{prize.emoji}
-          </motion.div>
-          <motion.h2 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-            className="text-white text-2xl" style={{ fontWeight: 900 }}>🎉 당첨!</motion.h2>
+
+          {/* Spin type badge */}
+          <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-black"
+            style={{ backgroundColor: 'rgba(0,0,0,0.3)', color: 'rgba(255,255,255,0.9)' }}>
+            {spinLabel}
+          </div>
+
+          <div className="pt-8 pb-2 text-center">
+            <AnimatePresence mode="wait">
+              {step === 'reveal' ? (
+                <motion.div key="reveal" initial={{ scale: 0, rotate: -20 }} animate={{ scale: 1, rotate: 0 }}
+                  exit={{ scale: 0.8, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 350, delay: 0.1 }}>
+                  <div className="text-7xl mb-2">{prize.emoji}</div>
+                  <h2 className="text-white font-black text-2xl">🎉 당첨!</h2>
+                </motion.div>
+              ) : (
+                <motion.div key="claimed" initial={{ scale: 0.5, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 350 }}>
+                  <div className="text-6xl mb-2">✅</div>
+                  <h2 className="text-white font-black text-xl">증정권 저장 완료!</h2>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Perforated divider */}
+          <div className="flex items-center mt-3 px-4">
+            <div className="w-5 h-5 rounded-full bg-white -ml-6" />
+            <div className="flex-1 border-t-2 border-dashed border-white/30 mx-2" />
+            <div className="w-5 h-5 rounded-full bg-white -mr-6" />
+          </div>
         </div>
 
-        <div className="px-6 py-5">
-          {isTshirt && (
-            <div className="rounded-xl px-3 py-2 mb-3 flex items-center gap-2"
-              style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5' }}>
-              <span className="text-sm">🔥</span>
-              <p className="text-xs font-black" style={{ color: '#EF4444' }}>
-                한정 {tshirtRemaining}개 남음! 정말 행운이에요!
+        {/* Coupon body */}
+        <div className="px-5 pt-4 pb-5">
+          {/* ── Step 1: Reveal ── */}
+          {step === 'reveal' && (
+            <>
+              {isTshirt && (
+                <div className="rounded-xl px-3 py-2 mb-3 flex items-center gap-2"
+                  style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5' }}>
+                  <span>🔥</span>
+                  <p className="text-xs font-black text-red-500">한정 {tshirtRemaining}개 남음! 정말 행운이에요!</p>
+                </div>
+              )}
+
+              <h3 className="font-black text-gray-900 text-center text-lg mb-0.5">{prize.name}</h3>
+              <p className="text-center text-xs text-gray-400 mb-4">📍 {storeName}</p>
+
+              {/* Mini voucher preview */}
+              <div className="rounded-2xl p-4 mb-4 text-center"
+                style={{ backgroundColor: prize.color + '10', border: `1.5px dashed ${prize.color}55` }}>
+                <p className="text-xs text-gray-500 mb-1">매장 직원에게 이 화면을 보여주세요</p>
+                <p className="font-black text-lg tracking-widest mb-1" style={{ color: prize.color }}>{code}</p>
+                <p className="text-xs" style={{ color: prize.color + 'AA' }}>매장 증정권 · 30일 유효</p>
+              </div>
+
+              <p className="text-xs text-gray-500 text-center mb-4 leading-relaxed">
+                {prize.description}
               </p>
-            </div>
-          )}
 
-          <h3 className="text-gray-900 text-lg text-center mb-1" style={{ fontWeight: 900 }}>
-            {prize.name}
-          </h3>
-          <p className="text-gray-500 text-sm text-center mb-4">{prize.description}</p>
-
-          {/* 로그인 여부에 따른 CTA */}
-          {isLoggedInUser ? (
-            <>
-              <div className="rounded-xl px-4 py-3 mb-4"
-                style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0' }}>
-                <p className="text-xs font-black mb-0.5" style={{ color: GREEN }}>✅ 교환권이 마이페이지에 발급되었어요!</p>
-                <p className="text-xs text-gray-500">마이페이지 → 내 교환권에서 사용할 수 있어요.</p>
-              </div>
-              <button onClick={onGoMyPage}
-                className="w-full py-3.5 rounded-2xl text-white font-black mb-2.5 hover:opacity-90 transition-opacity"
-                style={{ backgroundColor: GREEN, fontSize: '15px' }}>
-                🎫 마이페이지에서 교환권 확인
-              </button>
-              {canSpinAgain ? (
-                <button onClick={onSpinAgain}
-                  className="w-full py-3 rounded-2xl font-black border-2 text-sm"
-                  style={{ borderColor: YELLOW, color: '#92400E', backgroundColor: '#FFFBEB' }}>
-                  🎰 한 번 더 돌리기! ({MAX_SPINS - 1}회 남음)
-                </button>
+              {/* Single CTA: 증정권 받기 */}
+              {isLoggedInUser ? (
+                <motion.button onClick={handleClaim}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-gray-900 flex items-center justify-center gap-2 text-sm"
+                  style={{ background: `linear-gradient(135deg, ${YELLOW}, #FFA000)`, boxShadow: `0 4px 16px rgba(255,215,64,0.5)` }}>
+                  🎫 증정권 받기
+                </motion.button>
               ) : (
-                <button onClick={onClose}
-                  className="w-full py-3 rounded-2xl font-black border-2 text-sm text-gray-500"
-                  style={{ borderColor: '#E5E7EB' }}>
-                  오늘의 참여 완료 · 내일 또 도전해요!
-                </button>
+                <motion.button onClick={onLoginToClaim}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-white flex items-center justify-center gap-2 text-sm"
+                  style={{ background: `linear-gradient(135deg, ${GREEN}, #00C853)`, boxShadow: `0 4px 16px rgba(43,174,78,0.4)` }}>
+                  🔐 로그인하고 증정권 받기
+                </motion.button>
               )}
-            </>
-          ) : (
-            <>
-              <div className="rounded-xl px-4 py-3 mb-4"
-                style={{ backgroundColor: '#FFFBEB', border: '1px solid #FCD34D' }}>
-                <p className="text-xs font-black mb-0.5" style={{ color: '#92400E' }}>⚠️ 교환권 발급을 위해 로그인이 필요해요</p>
-                <p className="text-xs text-gray-500">로그인하면 교환권이 즉시 마이페이지에 등록됩니다.</p>
-              </div>
-              <button onClick={onLoginToClaim}
-                className="w-full py-3.5 rounded-2xl text-white font-black mb-2.5 hover:opacity-90 transition-opacity"
-                style={{ background: `linear-gradient(135deg, ${GREEN}, #00C853)`, fontSize: '15px' }}>
-                🔐 로그인하고 교환권 받기
-              </button>
-              {canSpinAgain ? (
-                <button onClick={onSpinAgain}
-                  className="w-full py-3 rounded-2xl font-black border-2 text-sm"
-                  style={{ borderColor: YELLOW, color: '#92400E', backgroundColor: '#FFFBEB' }}>
-                  🎰 한 번 더 돌리기!
-                </button>
-              ) : (
-                <button onClick={onClose}
-                  className="w-full py-3 rounded-2xl font-black border-2 text-sm text-gray-500"
-                  style={{ borderColor: '#E5E7EB' }}>
-                  닫기
-                </button>
+
+              {!isLoggedInUser && (
+                <div className="mt-3 px-3 py-2.5 rounded-xl"
+                  style={{ backgroundColor: '#FFFBEB', border: '1px solid #FCD34D' }}>
+                  <p className="text-xs text-amber-700 text-center">
+                    ⚠️ 로그인하지 않으면 증정권이 저장되지 않아요
+                  </p>
+                </div>
               )}
             </>
           )}
-          <p className="text-center text-xs text-gray-400 mt-3">* 데모 환경: 실제 경품 미지급</p>
+
+          {/* ── Step 2: Claimed ── */}
+          {step === 'claimed' && (
+            <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
+              {/* Saved confirmation */}
+              <div className="rounded-2xl p-4 mb-4 text-center"
+                style={{ backgroundColor: '#F0FDF4', border: `1.5px solid #86EFAC` }}>
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <span className="text-2xl">{prize.emoji}</span>
+                  <div className="text-left">
+                    <p className="font-black text-sm text-gray-900">{prize.name}</p>
+                    <p className="text-xs text-gray-400">📍 {storeName}</p>
+                  </div>
+                </div>
+                <div className="border-t border-dashed my-2" style={{ borderColor: '#86EFAC' }} />
+                <p className="font-black text-sm tracking-widest" style={{ color: GREEN }}>{code}</p>
+                <p className="text-xs text-gray-500 mt-1">마이페이지 &gt; 내 증정권에서 확인 가능</p>
+              </div>
+
+              {/* Next action: 다시 돌리기 or 완료 */}
+              <div className="space-y-2.5">
+                {respinsLeft > 0 ? (
+                  <>
+                    <motion.button onClick={onSpinAgain}
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                      className="w-full py-3.5 rounded-2xl font-black text-white flex items-center justify-center gap-2 text-sm"
+                      style={{ background: 'linear-gradient(135deg,#FF6B6B,#EF4444)', boxShadow: '0 4px 16px rgba(239,68,68,0.4)' }}>
+                      🔄 한 번 더 돌리기!
+                      <span className="px-2 py-0.5 rounded-full text-xs"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}>
+                        {respinsLeft}회 남음
+                      </span>
+                    </motion.button>
+                    <button onClick={onGoMyPage}
+                      className="w-full py-3 rounded-2xl font-black border-2 text-sm flex items-center justify-center gap-2"
+                      style={{ borderColor: GREEN, color: GREEN }}>
+                      🎫 마이페이지에서 증정권 확인
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <motion.button onClick={onGoMyPage}
+                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                      className="w-full py-3.5 rounded-2xl font-black text-gray-900 flex items-center justify-center gap-2 text-sm"
+                      style={{ background: `linear-gradient(135deg, ${YELLOW}, #FFA000)`, boxShadow: `0 4px 16px rgba(255,215,64,0.5)` }}>
+                      🎫 마이페이지에서 증정권 확인
+                    </motion.button>
+                    <button onClick={onClose}
+                      className="w-full py-3 rounded-2xl font-black border-2 text-sm text-gray-400"
+                      style={{ borderColor: '#E5E7EB' }}>
+                      오늘 모든 기회 완료 · 내일 또 도전해요! 🌟
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {respinsLeft > 0 && (
+                <div className="mt-3 px-3 py-2.5 rounded-xl"
+                  style={{ backgroundColor: '#FFF1F2', border: '1px solid #FECDD3' }}>
+                  <p className="text-xs text-red-500 text-center font-black">
+                    💡 다시 돌리면 추가 증정권을 받을 수 있어요!
+                  </p>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          <p className="text-center text-xs text-gray-300 mt-3">* 데모 환경 · 실제 경품 미지급</p>
         </div>
       </motion.div>
     </motion.div>
-  );
-}
-
-// ── Spin Count Badge ──────────────────────────────────────────────────────────
-function SpinCountBadge({ spinsToday, maxSpins }: { spinsToday: number; maxSpins: number }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      {[...Array(maxSpins)].map((_, i) => (
-        <div key={i} className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-black border-2"
-          style={{
-            backgroundColor: i < spinsToday ? 'rgba(255,255,255,0.15)' : 'rgba(255,215,64,0.2)',
-            borderColor: i < spinsToday ? 'rgba(255,255,255,0.25)' : YELLOW,
-            color: i < spinsToday ? 'rgba(255,255,255,0.4)' : YELLOW,
-          }}>
-          {i < spinsToday ? '✓' : i + 1}
-        </div>
-      ))}
-      <span className="text-xs ml-1" style={{ color: spinsToday < maxSpins ? YELLOW : 'rgba(255,255,255,0.5)' }}>
-        {spinsToday < maxSpins ? `${maxSpins - spinsToday}회 남음` : '완료'}
-      </span>
-    </div>
   );
 }
 
@@ -303,6 +357,7 @@ export function RouletteEventPage() {
   const [isSpinning, setIsSpinning] = useState(false);
   const [rotation, setRotation] = useState(0);
   const [currentPrize, setCurrentPrize] = useState<PrizeResult | null>(null);
+  const [currentCouponId, setCurrentCouponId] = useState('');
   const [tshirtRemaining, setTshirtRemaining] = useState(50);
   const [spinsToday, setSpinsToday] = useState(0);
   const [canSpin, setCanSpin] = useState(true);
@@ -310,22 +365,18 @@ export function RouletteEventPage() {
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const [serverError, setServerError] = useState('');
   const [showModal, setShowModal] = useState(false);
-  const [canSpinAgain, setCanSpinAgain] = useState(false);
-  const [pendingPrize, setPendingPrize] = useState<object | null>(null);
 
   const deviceId = getOrCreateDeviceId();
   const authToken = getAuthToken();
   const loggedIn = isLoggedIn();
+  const respinsLeft = spinsToday >= 1 ? MAX_RESPINS - (spinsToday - 1) : 0;
+  const isOfficialSpin = spinsToday === 0;
 
-  // ── On mount: fetch stock + check status ───────────────────────────────────
   useEffect(() => {
-    fetch(`${SERVER_URL}/roulette/stock`, {
-      headers: { Authorization: `Bearer ${publicAnonKey}` },
-    })
+    fetch(`${SERVER_URL}/roulette/stock`, { headers: { Authorization: `Bearer ${publicAnonKey}` } })
       .then((r) => r.json())
       .then((d) => { if (d.tshirt_remaining !== undefined) setTshirtRemaining(d.tshirt_remaining); })
       .catch(console.error);
-
     checkDailyStatus();
   }, [storeId, deviceId]);
 
@@ -340,14 +391,10 @@ export function RouletteEventPage() {
       setSpinsToday(d.spinsToday || 0);
       setCanSpin(d.canSpin !== false);
       setTodayResults(d.todayResults || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsCheckingStatus(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setIsCheckingStatus(false); }
   };
 
-  // ── Spin ──────────────────────────────────────────────────────────────────
   const handleSpin = async () => {
     if (isSpinning || !canSpin) return;
     setIsSpinning(true);
@@ -357,10 +404,7 @@ export function RouletteEventPage() {
     try {
       const res = await fetch(`${SERVER_URL}/roulette/spin`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${authToken || publicAnonKey}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${authToken || publicAnonKey}` },
         body: JSON.stringify({ storeId, storeName, deviceId }),
       });
       const data = await res.json();
@@ -368,54 +412,41 @@ export function RouletteEventPage() {
       if (!res.ok || data.error) {
         setServerError(data.error || '룰렛 오류가 발생했습니다.');
         setIsSpinning(false);
-        if (data.spinsToday !== undefined) {
-          setSpinsToday(data.spinsToday);
-          setCanSpin(data.spinsToday < MAX_SPINS);
-        }
+        if (data.spinsToday !== undefined) { setSpinsToday(data.spinsToday); setCanSpin(data.spinsToday < MAX_SPINS); }
         return;
       }
 
       const wonPrize: PrizeResult = data.prize;
       if (data.tshirt_remaining !== undefined) setTshirtRemaining(data.tshirt_remaining);
 
-      // Determine target segment (pick random segment matching the prize)
-      const possibleSegments = PRIZE_SEGMENTS[wonPrize.id] ?? [0];
-      const targetSegment = possibleSegments[Math.floor(Math.random() * possibleSegments.length)];
-      const targetAngle = 360 - (targetSegment * SEGMENT_ANGLE + SEGMENT_ANGLE / 2);
+      // Wheel animation target
+      const segs = PRIZE_SEGMENTS[wonPrize.id] ?? [0];
+      const targetSeg = segs[Math.floor(Math.random() * segs.length)];
+      const targetAngle = 360 - (targetSeg * SEGMENT_ANGLE + SEGMENT_ANGLE / 2);
       const fullSpins = 5 + Math.floor(Math.random() * 4);
-      const totalRotation = rotation + fullSpins * 360 + targetAngle - (rotation % 360);
-
-      setRotation(totalRotation);
+      const totalRot = rotation + fullSpins * 360 + targetAngle - (rotation % 360);
+      setRotation(totalRot);
       setCurrentPrize(wonPrize);
+      setCurrentCouponId(data.couponId || '');
 
-      const newSpinsToday = data.spinsToday || spinsToday + 1;
-      const newCanSpinAgain = data.canSpinAgain === true;
-
-      // If not logged in, save pending prize to sessionStorage
+      // Save pending for non-logged-in users
       if (!loggedIn && data.couponId) {
         const pending = {
-          prizeId: wonPrize.id,
-          prizeName: wonPrize.name,
-          prizeEmoji: wonPrize.emoji,
-          prizeColor: wonPrize.color,
-          storeId, storeName,
-          couponId: data.couponId,
-          timestamp: new Date().toISOString(),
+          prizeId: wonPrize.id, prizeName: wonPrize.name, prizeEmoji: wonPrize.emoji, prizeColor: wonPrize.color,
+          storeId, storeName, couponId: data.couponId, timestamp: new Date().toISOString(),
         };
-        setPendingPrize(pending);
-        // Store in sessionStorage for login flow
         const stored = JSON.parse(sessionStorage.getItem(PENDING_PRIZE_KEY) || '[]');
         stored.push(pending);
         sessionStorage.setItem(PENDING_PRIZE_KEY, JSON.stringify(stored));
       }
 
+      const newSpinsToday = data.spinsToday || spinsToday + 1;
       setTimeout(() => {
         setIsSpinning(false);
         setSpinsToday(newSpinsToday);
-        setCanSpin(newCanSpinAgain);
-        setCanSpinAgain(newCanSpinAgain);
+        setCanSpin(newSpinsToday < MAX_SPINS);
         setShowModal(true);
-        checkDailyStatus(); // refresh state
+        checkDailyStatus();
       }, 4800);
     } catch (err) {
       console.error('Spin error:', err);
@@ -427,39 +458,26 @@ export function RouletteEventPage() {
   const handleSpinAgain = () => {
     setShowModal(false);
     setCurrentPrize(null);
-    // Small delay then spin
     setTimeout(() => handleSpin(), 400);
   };
 
-  const handleGoMyPage = () => {
-    navigate('/mypage');
-  };
-
-  const handleLoginToClaim = () => {
-    // pending prizes already saved to sessionStorage above
-    navigate(`/login?return=/mypage&claim=1`);
-  };
+  const handleGoMyPage = () => navigate('/mypage');
+  const handleLoginToClaim = () => navigate(`/login?return=/mypage&claim=1`);
 
   return (
-    <div className="min-h-screen flex flex-col relative" style={{
-      background: 'linear-gradient(160deg, #0D1B2A 0%, #1a2744 45%, #0D1B2A 100%)',
-      overflow: 'hidden',
-    }}>
-      {/* Animated BG */}
+    <div className="min-h-screen flex flex-col relative"
+      style={{ background: 'linear-gradient(160deg,#0D1B2A 0%,#1a2744 45%,#0D1B2A 100%)', overflow: 'hidden' }}>
+      {/* BG orbs */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {[...Array(14)].map((_, i) => (
           <motion.div key={i} className="absolute rounded-full"
             style={{
-              width: 20 + (i * 7) % 80,
-              height: 20 + (i * 7) % 80,
+              width: 20 + (i * 7) % 80, height: 20 + (i * 7) % 80,
               backgroundColor: i % 3 === 0 ? GREEN : i % 3 === 1 ? YELLOW : '#fff',
-              left: `${(i * 13) % 100}%`,
-              top: `${(i * 17) % 100}%`,
-              opacity: 0.06,
+              left: `${(i * 13) % 100}%`, top: `${(i * 17) % 100}%`, opacity: 0.05,
             }}
-            animate={{ y: [0, -24, 0], opacity: [0.04, 0.12, 0.04] }}
-            transition={{ duration: 4 + i * 0.4, repeat: Infinity, delay: i * 0.3 }}
-          />
+            animate={{ y: [0, -24, 0], opacity: [0.03, 0.1, 0.03] }}
+            transition={{ duration: 4 + i * 0.4, repeat: Infinity, delay: i * 0.3 }} />
         ))}
       </div>
 
@@ -468,7 +486,7 @@ export function RouletteEventPage() {
         <div className="text-center mb-5 w-full max-w-sm">
           <div className="flex items-center justify-center gap-2 mb-4">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center shadow-lg"
-              style={{ background: `linear-gradient(135deg, ${GREEN}, #00C853)` }}>
+              style={{ background: `linear-gradient(135deg,${GREEN},#00C853)` }}>
               <span className="text-white font-black text-lg">七</span>
             </div>
             <span className="text-white font-black text-lg">칠성사이다 × 김밥대장</span>
@@ -484,12 +502,10 @@ export function RouletteEventPage() {
             행운을 돌려봐!
           </h1>
           <p className="text-gray-300 text-sm mb-4">
-            <span className="font-black" style={{ color: YELLOW }}>{storeName}</span> 방문 기념
+            <span className="font-black" style={{ color: YELLOW }}>{storeName}</span> 방문 기념 매장 증정권
           </p>
-
-          {/* Spin count + stock */}
-          <div className="flex items-center justify-center gap-4 flex-wrap">
-            <SpinCountBadge spinsToday={spinsToday} maxSpins={MAX_SPINS} />
+          <div className="flex justify-center">
+            <SpinChanceBadge spinsToday={spinsToday} />
           </div>
         </div>
 
@@ -506,24 +522,22 @@ export function RouletteEventPage() {
           )}
         </div>
 
-        {/* Prize Legend */}
+        {/* Prize legend */}
         <div className="grid grid-cols-2 gap-3 mb-5 w-full max-w-xs">
-          {/* 사이다 1+1 */}
           <div className="flex items-center gap-2.5 p-3 rounded-2xl"
             style={{ backgroundColor: 'rgba(0,87,184,0.25)', border: '1.5px solid rgba(0,87,184,0.5)' }}>
             <span className="text-2xl">🥤</span>
             <div>
-              <p className="text-white text-xs font-black">사이다 1+1</p>
-              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.5)', fontSize: '10px' }}>편의점 교환권</p>
+              <p className="text-white text-xs font-black">사이다 무료 증정</p>
+              <p className="text-xs" style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10 }}>매장 제시 증정권</p>
             </div>
           </div>
-          {/* 한정판 티셔츠 */}
           <div className="flex items-center gap-2.5 p-3 rounded-2xl"
             style={{ backgroundColor: 'rgba(239,68,68,0.2)', border: '1.5px solid rgba(239,68,68,0.5)' }}>
             <span className="text-2xl">👕</span>
             <div>
               <p className="text-white text-xs font-black">한정판 티셔츠</p>
-              <p className="text-xs" style={{ color: '#FCA5A5', fontSize: '10px' }}>🔥 한정 50개</p>
+              <p className="text-xs" style={{ color: '#FCA5A5', fontSize: 10 }}>🔥 한정 50개</p>
             </div>
           </div>
         </div>
@@ -537,7 +551,7 @@ export function RouletteEventPage() {
           </motion.div>
         )}
 
-        {/* Spin Button / Status */}
+        {/* Spin button / done state */}
         {isCheckingStatus ? (
           <p className="text-gray-400 text-sm">참여 현황 확인 중...</p>
         ) : !canSpin && !isSpinning ? (
@@ -545,71 +559,101 @@ export function RouletteEventPage() {
             <div className="rounded-2xl px-5 py-5 mb-4"
               style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
               <p className="text-2xl mb-2">✅</p>
-              <p className="text-white font-black text-base mb-1">오늘 참여 완료!</p>
-              <p className="text-gray-400 text-sm">하루 최대 {MAX_SPINS}번 참여 가능해요.</p>
+              <p className="text-white font-black text-base mb-1">오늘 모든 기회 사용 완료!</p>
+              <p className="text-gray-400 text-sm">1회 참여 + 다시 돌리기 2회 완료</p>
               <p className="text-gray-500 text-xs mt-1">내일 다시 도전해주세요! 🌟</p>
             </div>
-
-            {/* Today's results summary */}
             {todayResults.length > 0 && (
               <div className="space-y-2 mb-4">
                 {todayResults.map((r, i) => (
                   <div key={i} className="flex items-center gap-2.5 p-3 rounded-xl"
                     style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
                     <span className="text-xl">{r.prizeEmoji}</span>
-                    <div className="text-left">
+                    <div className="text-left flex-1">
                       <p className="text-white text-xs font-black">{r.prizeName}</p>
-                      <p className="text-gray-500 text-xs">{i + 1}번째 참여</p>
+                      <p className="text-gray-500 text-xs">{i === 0 ? '🎰 공식 참여' : `🔄 다시 돌리기 ${i}회`}</p>
                     </div>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-black text-white"
+                      style={{ backgroundColor: r.prizeColor + 'AA' }}>받음</span>
                   </div>
                 ))}
               </div>
             )}
-
             <button onClick={handleGoMyPage}
               className="w-full py-3.5 rounded-2xl font-black text-sm"
               style={{ backgroundColor: GREEN, color: 'white' }}>
-              🎫 마이페이지에서 교환권 확인
+              🎫 마이페이지에서 증정권 확인
             </button>
           </div>
         ) : (
           <motion.button onClick={handleSpin} disabled={isSpinning}
             className="relative px-12 py-4 rounded-2xl text-lg font-black shadow-2xl"
             style={{
-              background: isSpinning
-                ? 'linear-gradient(135deg, #444, #666)'
-                : `linear-gradient(135deg, ${YELLOW}, #FFA000)`,
-              color: isSpinning ? '#888' : '#1a1a1a',
+              ...(isSpinning ? { background: 'linear-gradient(135deg,#444,#666)', color: '#888' }
+                : isOfficialSpin
+                ? { background: `linear-gradient(135deg,${YELLOW},#FFA000)`, color: '#1a1a1a', boxShadow: `0 0 24px rgba(255,215,64,0.45)` }
+                : { background: 'linear-gradient(135deg,#FF6B6B,#EF4444)', color: 'white', boxShadow: '0 0 24px rgba(239,68,68,0.4)' }),
               minWidth: 220,
             }}
             whileHover={!isSpinning ? { scale: 1.05, y: -3 } : {}}
             whileTap={!isSpinning ? { scale: 0.97 } : {}}
-            animate={!isSpinning ? { boxShadow: [`0 0 0px ${YELLOW}00`, `0 0 24px ${YELLOW}80`, `0 0 0px ${YELLOW}00`] } : {}}
-            transition={{ boxShadow: { duration: 2, repeat: Infinity } }}
-          >
+            animate={!isSpinning && isOfficialSpin
+              ? { boxShadow: [`0 0 0px ${YELLOW}00`, `0 0 28px ${YELLOW}90`, `0 0 0px ${YELLOW}00`] }
+              : {}
+            }
+            transition={{ boxShadow: { duration: 2, repeat: Infinity } }}>
             {isSpinning ? (
               <span className="flex items-center gap-2">
                 <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }}>⚙️</motion.span>
-                돌아가는 중...
+                돌아가는 ��...
               </span>
-            ) : `🎰 룰렛 돌리기! (${MAX_SPINS - spinsToday}회 남음)`}
+            ) : isOfficialSpin ? '🎰 참여하기!' : (
+              <span className="flex items-center gap-2">
+                🔄 다시 돌리기!
+                <span className="px-2 py-0.5 rounded-full text-xs font-black"
+                  style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>{respinsLeft}회 남음</span>
+              </span>
+            )}
           </motion.button>
         )}
 
-        {/* Info footer */}
+        {/* How it works info */}
+        {!isCheckingStatus && canSpin && (
+          <div className="mt-5 w-full max-w-xs rounded-2xl overflow-hidden"
+            style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
+            <div className="px-4 py-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
+              <p className="text-xs font-black text-center" style={{ color: YELLOW }}>오늘 이 매장 참여 방식</p>
+            </div>
+            <div className="px-4 py-3 flex items-center justify-around">
+              {[
+                { icon: '🎰', label: '공식 1회', sub: '증정권 발급', color: YELLOW },
+                { icon: '+', label: '', sub: '', color: 'rgba(255,255,255,0.2)' },
+                { icon: '🔄', label: '다시 돌리기', sub: '× 2회', color: '#FF6B6B' },
+                { icon: '=', label: '', sub: '', color: 'rgba(255,255,255,0.2)' },
+                { icon: '🏆', label: '총 3회', sub: '기회', color: 'white' },
+              ].map((item, i) => (
+                <div key={i} className="flex flex-col items-center">
+                  <span style={{ fontSize: item.label ? 20 : 18, color: item.color, fontWeight: 700 }}>{item.icon}</span>
+                  {item.label && <p className="text-white text-xs font-black mt-0.5" style={{ fontSize: 9 }}>{item.label}</p>}
+                  {item.sub && <p style={{ fontSize: 9, color: item.color, fontWeight: 700 }}>{item.sub}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Footer links */}
         <div className="mt-6 text-center space-y-2">
-          <p className="text-gray-600 text-xs">
-            매장 방문당 하루 최대 {MAX_SPINS}번 · 데모 버전 (실제 경품 미지급)
-          </p>
+          <p className="text-gray-600 text-xs">매장 방문당 1회 · 다시 돌리기 2회 · 데모 버전</p>
           {!loggedIn && (
             <p className="text-xs" style={{ color: '#FCD34D' }}>
-              💡 교환권 발급은 로그인 후 마이페이지에서 확인해주세요
+              💡 증정권 저장은 로그인 후 마이페이지에서 확인
             </p>
           )}
           <div className="flex items-center justify-center gap-4">
             <Link to="/" className="text-xs font-black" style={{ color: GREEN }}>← 홈으로</Link>
             {loggedIn && (
-              <Link to="/mypage" className="text-xs font-black" style={{ color: YELLOW }}>내 교환권 →</Link>
+              <Link to="/mypage" className="text-xs font-black" style={{ color: YELLOW }}>내 증정권 →</Link>
             )}
           </div>
         </div>
@@ -620,13 +664,16 @@ export function RouletteEventPage() {
         {showModal && currentPrize && (
           <PrizeModal
             prize={currentPrize}
-            canSpinAgain={canSpinAgain}
+            couponId={currentCouponId}
+            storeId={storeId}
+            storeName={storeName}
+            spinsToday={spinsToday}
+            tshirtRemaining={tshirtRemaining}
+            isLoggedInUser={loggedIn}
             onClose={() => setShowModal(false)}
             onSpinAgain={handleSpinAgain}
             onGoMyPage={handleGoMyPage}
             onLoginToClaim={handleLoginToClaim}
-            isLoggedInUser={loggedIn}
-            tshirtRemaining={tshirtRemaining}
           />
         )}
       </AnimatePresence>

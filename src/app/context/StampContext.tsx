@@ -1,23 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
+import { projectId } from '/utils/supabase/info';
 import { AuthContext } from './AuthContext';
 
 const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-66d4cc36`;
 const LOCAL_KEY = 'chilsung-stamps';
-
-export interface EntryRecord {
-  entryId: string;
-  entryType: 'tshirt77' | 'korail';
-  title: string;
-  emoji: string;
-  description: string;
-  registeredAt: string;
-}
-
-export interface Entries {
-  tshirt77: EntryRecord | null;
-  korail: EntryRecord | null;
-}
 
 interface StampContextType {
   collectedStamps: string[];
@@ -26,14 +12,15 @@ interface StampContextType {
   isCollected: (storeId: string) => boolean;
   stampCount: number;
   isLoading: boolean;
-  entries: Entries;
-  newEntryAlert: string | null;
-  clearNewEntryAlert: () => void;
 }
 
-const StampContext = createContext<StampContextType | null>(null);
+// Persist context across HMR re-evaluations so the same object is reused
+const CTX_KEY = '__chilsung_stamp_ctx__';
+if (!(globalThis as any)[CTX_KEY]) {
+  (globalThis as any)[CTX_KEY] = createContext<StampContextType | null>(null);
+}
+const StampContext = (globalThis as any)[CTX_KEY] as React.Context<StampContextType | null>;
 
-// ── LocalStorage helpers (guest mode) ─────────────────────────────────────────
 function loadLocal(): string[] {
   try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]'); } catch { return []; }
 }
@@ -47,14 +34,11 @@ export function StampProvider({ children }: { children: React.ReactNode }) {
   const userId = auth?.user?.id ?? null;
   const [collectedStamps, setCollectedStamps] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [entries, setEntries] = useState<Entries>({ tshirt77: null, korail: null });
-  const [newEntryAlert, setNewEntryAlert] = useState<string | null>(null);
 
-  // ── Fetch stamps + entries from server ────────────────────────────────────
+  // ── Fetch stamps from server ───────────────────────────────────────────────
   useEffect(() => {
     if (!accessToken || !userId) {
       setCollectedStamps(loadLocal());
-      setEntries({ tshirt77: null, korail: null });
       return;
     }
 
@@ -66,22 +50,28 @@ export function StampProvider({ children }: { children: React.ReactNode }) {
       },
     })
       .then((res) => {
+        if (res.status === 401) {
+          // Token expired or invalid — clear session and fall back to local
+          auth?.signOut?.();
+          setCollectedStamps(loadLocal());
+          return null;
+        }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
       .then((data) => {
-        setCollectedStamps(data.stamps || []);
-        if (data.entries) setEntries(data.entries);
+        if (data) setCollectedStamps(data.stamps || []);
       })
       .catch((err) => {
         console.error('Failed to fetch stamps:', err);
+        setCollectedStamps(loadLocal());
       })
       .finally(() => {
         setIsLoading(false);
       });
   }, [accessToken, userId]);
 
-  // ── Add stamp ─────────────────────────────────────────────────────────────
+  // ── Add stamp ──────────────────────────────────────────────────────────────
   const addStamp = useCallback((storeId: string) => {
     if (collectedStamps.includes(storeId)) return;
 
@@ -98,15 +88,12 @@ export function StampProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ storeId }),
       })
         .then((res) => {
+          if (res.status === 401) { auth?.signOut?.(); return null; }
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.json();
         })
         .then((data) => {
-          setCollectedStamps(data.stamps || updated);
-          if (data.entries) setEntries(data.entries);
-          if (data.newEntry) {
-            setNewEntryAlert(data.newEntry);
-          }
+          if (data) setCollectedStamps(data.stamps || updated);
         })
         .catch((err) => {
           console.error('Add stamp error:', err);
@@ -116,10 +103,9 @@ export function StampProvider({ children }: { children: React.ReactNode }) {
     }
   }, [collectedStamps, accessToken]);
 
-  // ── Reset stamps ──────────────────────────────────────────────────────────
+  // ── Reset stamps ───────────────────────────────────────────────────────────
   const resetStamps = () => {
     setCollectedStamps([]);
-    setEntries({ tshirt77: null, korail: null });
 
     if (accessToken) {
       fetch(`${SERVER_URL}/stamps/reset`, {
@@ -129,9 +115,8 @@ export function StampProvider({ children }: { children: React.ReactNode }) {
           Authorization: `Bearer ${accessToken}`,
         },
       })
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.entries) setEntries(data.entries);
+        .then((res) => {
+          if (res.status === 401) auth?.signOut?.();
         })
         .catch((err) => {
           console.error('Reset stamps error:', err);
@@ -142,7 +127,6 @@ export function StampProvider({ children }: { children: React.ReactNode }) {
   };
 
   const isCollected = (storeId: string) => collectedStamps.includes(storeId);
-  const clearNewEntryAlert = () => setNewEntryAlert(null);
 
   return (
     <StampContext.Provider
@@ -153,9 +137,6 @@ export function StampProvider({ children }: { children: React.ReactNode }) {
         isCollected,
         stampCount: collectedStamps.length,
         isLoading,
-        entries,
-        newEntryAlert,
-        clearNewEntryAlert,
       }}
     >
       {children}

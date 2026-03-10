@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'motion/react';
-import { LogOut, MapPin, Stamp, Gift, ChevronRight, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { LogOut, MapPin, Stamp, RefreshCw, CheckCircle2, X, Store } from 'lucide-react';
 import { projectId, publicAnonKey } from '/utils/supabase/info';
 import { useAuth } from '../context/AuthContext';
 import { useStamp } from '../context/StampContext';
@@ -18,6 +18,10 @@ function getDeviceId(): string {
     localStorage.setItem(DEVICE_ID_KEY, id);
   }
   return id;
+}
+
+function shortCode(id: string) {
+  return id.replace(/-/g, '').slice(-8).toUpperCase();
 }
 
 interface Coupon {
@@ -43,283 +47,308 @@ interface SpinHistory {
   timestamp: string;
 }
 
-// ── Coupon Card ───────────────────────────────────────────────────────────────
-function CouponCard({ coupon, onUse, isUsing, accessToken, onCouponUpdate }: {
+// ── Voucher Modal (매장에서 보여주는 화면) ───────────────────────────────────
+function VoucherModal({
+  coupon, onClose, onMarkUsed, isMarkingUsed,
+}: {
   coupon: Coupon;
-  onUse: (couponId: string) => void;
-  isUsing: boolean;
-  accessToken: string | null;
-  onCouponUpdate: (updated: Coupon) => void;
+  onClose: () => void;
+  onMarkUsed: () => void;
+  isMarkingUsed: boolean;
 }) {
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [showShipping, setShowShipping] = useState(false);
-  const [shippingDone, setShippingDone] = useState(false);
-  const [shippingLoading, setShippingLoading] = useState(false);
-  const [shippingError, setShippingError] = useState('');
-  const [shippingInfo, setShippingInfo] = useState({ name: '', phone: '', address: '', size: 'M' });
-
-  const color = coupon.prizeColor || (coupon.prizeId === 'tshirt' ? '#EF4444' : '#0057B8');
+  const [confirmUsed, setConfirmUsed] = useState(false);
+  const color = coupon.prizeColor || GREEN;
+  const code = shortCode(coupon.couponId);
   const expiryDate = new Date(new Date(coupon.issuedAt).getTime() + 30 * 24 * 60 * 60 * 1000);
   const isExpired = new Date() > expiryDate;
-  const isTshirt = coupon.prizeId === 'tshirt';
 
-  const handleShippingSubmit = async () => {
-    if (!shippingInfo.name || !shippingInfo.phone || !shippingInfo.address) {
-      setShippingError('모든 항목을 입력해주세요.');
-      return;
-    }
+  // Barcode-like decoration
+  const bars = Array.from({ length: 28 }, (_, i) => ({
+    width: [2, 3, 1, 2, 1, 3, 2, 1, 3, 1, 2, 1, 2, 3, 1, 2, 3, 1, 2, 1, 3, 2, 1, 2, 3, 1, 2, 1][i % 28],
+    height: 40 + (i % 3) * 8,
+  }));
+
+  return (
+    <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+      style={{ backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(12px)' }}>
+      <motion.div
+        className="relative bg-white rounded-3xl shadow-2xl w-full max-w-xs overflow-hidden"
+        initial={{ scale: 0.85, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.85, opacity: 0 }} transition={{ type: 'spring', stiffness: 300, damping: 25 }}>
+
+        {/* Close */}
+        <button onClick={onClose}
+          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.1)' }}>
+          <X size={14} />
+        </button>
+
+        {/* Header band */}
+        <div className="py-6 px-5 text-center relative overflow-hidden"
+          style={{ background: coupon.isUsed ? '#9CA3AF' : `linear-gradient(135deg,${color},${color}CC)` }}>
+          {/* shine effect */}
+          {!coupon.isUsed && (
+            <motion.div className="absolute top-0 -left-full w-1/2 h-full"
+              style={{ background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.15),transparent)' }}
+              animate={{ left: ['−100%', '200%'] }} transition={{ duration: 2.5, repeat: Infinity, repeatDelay: 1 }} />
+          )}
+
+          <div className="text-6xl mb-2" style={{ filter: coupon.isUsed ? 'grayscale(1)' : 'none' }}>
+            {coupon.prizeEmoji}
+          </div>
+          <p className="text-white/70 text-xs font-black tracking-widest mb-0.5">매장 증정권</p>
+          <h2 className="text-white font-black text-lg leading-tight">{coupon.prizeName}</h2>
+
+          {coupon.isUsed && (
+            <div className="absolute inset-0 flex items-center justify-center"
+              style={{ background: 'rgba(0,0,0,0.3)' }}>
+              <div className="rotate-[-20deg] border-4 border-white rounded-xl px-5 py-2">
+                <p className="text-white font-black text-2xl tracking-widest">사용완료</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Perforated edge */}
+        <div className="flex items-center bg-gray-100 px-0">
+          <div className="w-5 h-5 rounded-full bg-white -ml-2.5 border border-gray-200" />
+          <div className="flex-1 border-t-2 border-dashed border-gray-300 mx-2" />
+          <div className="w-5 h-5 rounded-full bg-white -mr-2.5 border border-gray-200" />
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5">
+          {/* Store & coupon info */}
+          <div className="space-y-2 mb-4">
+            {[
+              { label: '발급 매장', value: coupon.storeName },
+              { label: '발급 일시', value: new Date(coupon.issuedAt).toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric' }) },
+              { label: '유효 기간', value: coupon.isUsed ? '사용 완료' : isExpired ? '⚠️ 만료됨' : `~${expiryDate.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric' })}` },
+            ].map((row) => (
+              <div key={row.label} className="flex justify-between text-sm">
+                <span className="text-gray-400 text-xs">{row.label}</span>
+                <span className="text-gray-800 font-black text-xs">{row.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Barcode area */}
+          <div className="rounded-2xl p-3 mb-4 text-center"
+            style={{ backgroundColor: '#F9FAFB', border: '1.5px solid #F3F4F6' }}>
+            {/* Simulated barcode */}
+            <div className="flex items-end justify-center gap-0.5 mb-2" style={{ height: 52 }}>
+              {bars.map((bar, i) => (
+                <div key={i}
+                  style={{
+                    width: bar.width,
+                    height: bar.height,
+                    backgroundColor: coupon.isUsed ? '#D1D5DB' : '#1A1A1A',
+                    borderRadius: 1,
+                  }} />
+              ))}
+            </div>
+            <p className="font-black text-lg tracking-[0.3em]" style={{ color: coupon.isUsed ? '#9CA3AF' : '#1A1A1A' }}>
+              {code}
+            </p>
+            <p className="text-xs text-gray-400 mt-0.5">매장 직원에게 이 화면을 보여주세요</p>
+          </div>
+
+          {/* Usage instruction */}
+          {!coupon.isUsed && !isExpired && (
+            <div className="rounded-xl px-3 py-2.5 mb-4"
+              style={{ backgroundColor: color + '10', border: `1.5px solid ${color}30` }}>
+              <p className="text-xs font-black mb-0.5" style={{ color }}>💡 사용 방법</p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                이 화면을 매장 직원에게 보여주시면 {coupon.prizeName.replace('증정권', '')}을 받으실 수 있어요.
+                수령 후 아래 "사용 완료 처리" 버튼을 눌러 주세요.
+              </p>
+            </div>
+          )}
+
+          {/* Used info */}
+          {coupon.isUsed && coupon.usedAt && (
+            <div className="rounded-xl px-3 py-2.5 mb-4"
+              style={{ backgroundColor: '#F0FDF4', border: '1.5px solid #86EFAC' }}>
+              <p className="text-xs font-black mb-0.5" style={{ color: GREEN }}>✅ 사용 완료</p>
+              <p className="text-xs text-gray-500">
+                {new Date(coupon.usedAt).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}에 사용 처리되었어요.
+              </p>
+            </div>
+          )}
+
+          {/* Mark as used */}
+          {!coupon.isUsed && !isExpired && (
+            !confirmUsed ? (
+              <button onClick={() => setConfirmUsed(true)}
+                className="w-full py-3 rounded-2xl font-black text-sm border-2 flex items-center justify-center gap-2"
+                style={{ borderColor: GREEN, color: GREEN }}>
+                <CheckCircle2 size={15} /> 사용 완료 처리
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-gray-500 text-center">매장에서 상품을 받으셨나요?</p>
+                <div className="flex gap-2">
+                  <button onClick={() => setConfirmUsed(false)}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-black border-2 border-gray-200 text-gray-500">
+                    취소
+                  </button>
+                  <motion.button onClick={onMarkUsed} disabled={isMarkingUsed}
+                    whileTap={{ scale: 0.97 }}
+                    className="flex-1 py-2.5 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1"
+                    style={{ backgroundColor: GREEN }}>
+                    {isMarkingUsed
+                      ? <><RefreshCw size={11} className="animate-spin" /> 처리 중...</>
+                      : <><CheckCircle2 size={11} /> 네, 받았어요!</>}
+                  </motion.button>
+                </div>
+              </div>
+            )
+          )}
+
+          {(coupon.isUsed || isExpired) && (
+            <button onClick={onClose}
+              className="w-full py-3 rounded-2xl text-sm font-black border-2 border-gray-200 text-gray-400">
+              닫기
+            </button>
+          )}
+        </div>
+
+        <p className="text-center text-xs text-gray-300 pb-4">* 데모 환경 · 실제 경품 미지급</p>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ── Coupon Card (list view) ───────────────────────────────────────────────────
+function CouponCard({
+  coupon, onMarkUsed, isUsing, onCouponUpdate, accessToken,
+}: {
+  coupon: Coupon;
+  onMarkUsed: (couponId: string) => void;
+  isUsing: boolean;
+  onCouponUpdate: (updated: Coupon) => void;
+  accessToken: string | null;
+}) {
+  const [showVoucher, setShowVoucher] = useState(false);
+  const color = coupon.prizeColor || GREEN;
+  const expiryDate = new Date(new Date(coupon.issuedAt).getTime() + 30 * 24 * 60 * 60 * 1000);
+  const isExpired = new Date() > expiryDate;
+  const code = shortCode(coupon.couponId);
+
+  const handleMarkUsed = async () => {
     if (!accessToken) return;
-    setShippingLoading(true);
-    setShippingError('');
-    try {
-      const res = await fetch(`${SERVER_URL}/roulette/coupon/shipping`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-        body: JSON.stringify({ couponId: coupon.couponId, ...shippingInfo }),
-      });
-      const d = await res.json();
-      if (!res.ok || d.error) {
-        setShippingError(d.error || '배송 신청 중 오류가 발생했습니다.');
-      } else {
-        setShippingDone(true);
-        setShowShipping(false);
-        if (d.coupon) onCouponUpdate(d.coupon);
-      }
-    } catch (err) {
-      setShippingError(`네트워크 오류: ${err}`);
-    } finally {
-      setShippingLoading(false);
-    }
+    onMarkUsed(coupon.couponId);
+    setShowVoucher(false);
   };
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: coupon.isUsed ? 0.65 : 1, y: 0 }}
-      className="relative overflow-hidden rounded-3xl border-2"
-      style={{
-        borderColor: coupon.isUsed ? '#E5E7EB' : color + '60',
-        backgroundColor: coupon.isUsed ? '#F9FAFB' : color + '08',
-      }}
-    >
-      {/* Used watermark (non-tshirt) */}
-      {coupon.isUsed && !isTshirt && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
-          <div className="rotate-[-20deg] border-4 rounded-xl px-6 py-2"
-            style={{ borderColor: '#9CA3AF', color: '#9CA3AF', fontSize: '28px', fontWeight: 900, opacity: 0.35 }}>
-            사용완료
-          </div>
-        </div>
-      )}
+    <>
+      <motion.div layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: coupon.isUsed ? 0.6 : 1, y: 0 }}
+        className="relative bg-white rounded-3xl overflow-hidden"
+        style={{
+          border: `2px solid ${coupon.isUsed ? '#E5E7EB' : color + '50'}`,
+          boxShadow: coupon.isUsed ? 'none' : `0 2px 0 ${color}20`,
+        }}>
 
-      {/* Coupon hole dots (decorative) */}
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-3 w-6 h-6 rounded-full bg-white border-2"
-        style={{ borderColor: coupon.isUsed ? '#E5E7EB' : color + '40' }} />
-      <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-3 w-6 h-6 rounded-full bg-white border-2"
-        style={{ borderColor: coupon.isUsed ? '#E5E7EB' : color + '40' }} />
-
-      <div className="px-5 py-4">
-        {/* Top section */}
-        <div className="flex items-start gap-4 mb-3">
-          <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0"
-            style={{ backgroundColor: color + '20' }}>
-            {coupon.prizeEmoji}
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-0.5">
-              <span className="text-xs px-2 py-0.5 rounded-full font-black"
-                style={{ backgroundColor: color + '20', color }}>
-                {isTshirt ? '🔥 한정판' : '🥤 교환권'}
-              </span>
-              {coupon.isUsed && (
-                <span className="text-xs px-2 py-0.5 rounded-full font-black"
-                  style={{ backgroundColor: isTshirt ? '#F0FDF4' : '#F3F4F6', color: isTshirt ? GREEN : '#9CA3AF' }}>
-                  {isTshirt ? '✈️ 배송신청 완료' : '사용완료'}
-                </span>
-              )}
+        {/* Used watermark */}
+        {coupon.isUsed && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+            <div className="rotate-[-18deg] border-4 rounded-xl px-5 py-1.5"
+              style={{ borderColor: '#9CA3AF40', color: '#9CA3AF', fontSize: 22, fontWeight: 900, opacity: 0.3, letterSpacing: '3px' }}>
+              사용완료
             </div>
-            <h3 className="font-black text-gray-900" style={{ fontSize: '15px' }}>{coupon.prizeName}</h3>
-            <p className="text-xs text-gray-500 mt-0.5 truncate">📍 {coupon.storeName}</p>
           </div>
-        </div>
-
-        {/* Shipping done badge */}
-        {shippingDone && (
-          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl px-3 py-2 mb-3 flex items-center gap-2"
-            style={{ backgroundColor: '#F0FDF4', border: '1.5px solid #86EFAC' }}>
-            <span className="text-lg">✈️</span>
-            <div>
-              <p className="font-black text-xs" style={{ color: GREEN }}>배송 신청 완료!</p>
-              <p className="text-xs text-gray-500">3~5일 내 발송 예정 (데모: 실제 미발송)</p>
-            </div>
-          </motion.div>
         )}
 
-        {/* Tshirt: shipping form */}
-        <AnimatePresence>
-          {isTshirt && showShipping && !coupon.isUsed && (
-            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }} style={{ overflow: 'hidden' }}>
-              <div className="rounded-2xl p-4 mb-3" style={{ backgroundColor: '#FEF2F2', border: '1.5px solid #FCA5A5' }}>
-                <p className="font-black text-sm mb-3" style={{ color: '#EF4444' }}>📦 티셔츠 배송 신청</p>
+        {/* Left color stripe */}
+        <div className="absolute left-0 top-0 bottom-0 w-1.5 rounded-l-3xl"
+          style={{ backgroundColor: coupon.isUsed ? '#E5E7EB' : color }} />
 
-                {shippingError && (
-                  <p className="text-xs text-red-500 mb-2 font-black">⚠️ {shippingError}</p>
+        {/* Hole dots */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-2 w-5 h-5 rounded-full border-2"
+          style={{ borderColor: coupon.isUsed ? '#E5E7EB' : color + '30', backgroundColor: '#F8FAFF' }} />
+
+        <div className="pl-6 pr-4 py-4">
+          <div className="flex items-start gap-3">
+            {/* Emoji */}
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0"
+              style={{ backgroundColor: color + '15', border: `1.5px solid ${color}20` }}>
+              {coupon.prizeEmoji}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                <span className="text-xs px-2 py-0.5 rounded-full font-black"
+                  style={{ backgroundColor: coupon.isUsed ? '#F3F4F6' : color + '15', color: coupon.isUsed ? '#9CA3AF' : color }}>
+                  {coupon.isUsed ? '✅ 사용완료' : '🎫 매장 증정권'}
+                </span>
+                {!coupon.isUsed && isExpired && (
+                  <span className="text-xs px-2 py-0.5 rounded-full font-black bg-red-50 text-red-400">⚠️ 만료</span>
                 )}
-
-                <div className="space-y-2.5">
-                  {/* 이름 */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-600 mb-1">수령인 이름 *</label>
-                    <input type="text" placeholder="홍길동"
-                      className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
-                      style={{ borderColor: '#FCA5A5', backgroundColor: 'white' }}
-                      onFocus={(e) => e.target.style.borderColor = '#EF4444'}
-                      onBlur={(e) => e.target.style.borderColor = '#FCA5A5'}
-                      value={shippingInfo.name}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, name: e.target.value }))} />
-                  </div>
-                  {/* 전화번호 */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-600 mb-1">연락처 *</label>
-                    <input type="tel" placeholder="010-0000-0000"
-                      className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
-                      style={{ borderColor: '#FCA5A5', backgroundColor: 'white' }}
-                      onFocus={(e) => e.target.style.borderColor = '#EF4444'}
-                      onBlur={(e) => e.target.style.borderColor = '#FCA5A5'}
-                      value={shippingInfo.phone}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, phone: e.target.value }))} />
-                  </div>
-                  {/* 주소 */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-600 mb-1">배송 주소 *</label>
-                    <input type="text" placeholder="서울시 강남구 테헤란로 123, 101호"
-                      className="w-full px-3 py-2 rounded-xl border text-sm outline-none"
-                      style={{ borderColor: '#FCA5A5', backgroundColor: 'white' }}
-                      onFocus={(e) => e.target.style.borderColor = '#EF4444'}
-                      onBlur={(e) => e.target.style.borderColor = '#FCA5A5'}
-                      value={shippingInfo.address}
-                      onChange={(e) => setShippingInfo((p) => ({ ...p, address: e.target.value }))} />
-                  </div>
-                  {/* 사이즈 */}
-                  <div>
-                    <label className="block text-xs font-black text-gray-600 mb-1.5">사이즈 *</label>
-                    <div className="flex gap-2">
-                      {['S', 'M', 'L', 'XL'].map((s) => (
-                        <button key={s} onClick={() => setShippingInfo((p) => ({ ...p, size: s }))}
-                          className="flex-1 py-2 rounded-xl text-sm font-black border-2 transition-all"
-                          style={{
-                            borderColor: shippingInfo.size === s ? '#EF4444' : '#FCA5A5',
-                            backgroundColor: shippingInfo.size === s ? '#FEF2F2' : 'white',
-                            color: shippingInfo.size === s ? '#EF4444' : '#6B7280',
-                          }}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => { setShowShipping(false); setShippingError(''); }}
-                    className="flex-1 py-2.5 rounded-xl text-xs font-black bg-white border-2"
-                    style={{ borderColor: '#FCA5A5', color: '#9CA3AF' }}>
-                    취소
-                  </button>
-                  <button onClick={handleShippingSubmit} disabled={shippingLoading}
-                    className="flex-1 py-2.5 rounded-xl text-xs font-black text-white flex items-center justify-center gap-1"
-                    style={{ backgroundColor: '#EF4444' }}>
-                    {shippingLoading
-                      ? <><RefreshCw size={11} className="animate-spin" /> 신청 중...</>
-                      : '✈️ 배송 신청하기'}
-                  </button>
-                </div>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Divider */}
-        <div className="border-t border-dashed my-3" style={{ borderColor: coupon.isUsed ? '#E5E7EB' : color + '30' }} />
-
-        {/* Bottom section */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs text-gray-400">
-              발급: {new Date(coupon.issuedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
-            </p>
-            {coupon.isUsed && coupon.usedAt ? (
-              <p className="text-xs font-black" style={{ color: isTshirt ? GREEN : '#9CA3AF' }}>
-                {isTshirt ? '✈️ 배송 신청됨' : `사용: ${new Date(coupon.usedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}`}
+              <h3 className="font-black text-gray-900 text-sm leading-tight">{coupon.prizeName}</h3>
+              <p className="text-xs text-gray-400 mt-0.5 truncate">
+                <Store size={9} className="inline mr-1" />{coupon.storeName}
               </p>
-            ) : (
-              <p className="text-xs" style={{ color: isExpired ? '#EF4444' : '#9CA3AF' }}>
-                {isExpired ? '⚠️ 만료됨' : `~ ${expiryDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 까지`}
-              </p>
-            )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {!coupon.isUsed && !isExpired && (
-              <>
-                {/* Tshirt: shipping button */}
-                {isTshirt && !showShipping && (
-                  <button onClick={() => setShowShipping(true)}
-                    className="px-4 py-2 rounded-xl text-xs font-black text-white hover:opacity-90 transition-opacity"
-                    style={{ backgroundColor: '#EF4444' }}>
-                    📦 배송 신청
-                  </button>
-                )}
+          {/* Dashed divider */}
+          <div className="border-t-2 border-dashed my-3" style={{ borderColor: color + '20' }} />
 
-                {/* Non-tshirt or fallback: use button */}
-                {!isTshirt && (
-                  <>
-                    {showConfirm ? (
-                      <div className="flex gap-2">
-                        <button onClick={() => setShowConfirm(false)}
-                          className="px-3 py-1.5 rounded-xl text-xs font-black bg-gray-100 text-gray-600 hover:bg-gray-200">
-                          취소
-                        </button>
-                        <button
-                          onClick={() => { onUse(coupon.couponId); setShowConfirm(false); }}
-                          disabled={isUsing}
-                          className="px-3 py-1.5 rounded-xl text-xs font-black text-white flex items-center gap-1"
-                          style={{ backgroundColor: color }}>
-                          {isUsing ? <RefreshCw size={11} className="animate-spin" /> : <CheckCircle2 size={11} />}
-                          사용 확인
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setShowConfirm(true)}
-                        className="px-4 py-2 rounded-xl text-xs font-black text-white hover:opacity-90 transition-opacity"
-                        style={{ backgroundColor: color }}>
-                        🎫 사용하기
-                      </button>
-                    )}
-                  </>
-                )}
-              </>
-            )}
-            {coupon.isUsed && (
-              <div className="flex items-center gap-1 text-xs font-black"
-                style={{ color: isTshirt ? GREEN : '#9CA3AF' }}>
-                <CheckCircle2 size={13} />
-                {isTshirt ? '배송신청 완료' : '사용완료'}
-              </div>
-            )}
+          {/* Bottom: code + actions */}
+          <div className="flex items-center justify-between gap-3">
+            {/* Mini code */}
+            <div>
+              <p className="text-xs text-gray-400 font-mono tracking-widest">{code}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                {coupon.isUsed && coupon.usedAt
+                  ? `사용: ${new Date(coupon.usedAt).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}`
+                  : isExpired ? '⚠️ 만료됨'
+                  : `~${expiryDate.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })} 까지`}
+              </p>
+            </div>
+
+            {/* CTA */}
+            {!coupon.isUsed && !isExpired ? (
+              <motion.button
+                onClick={() => setShowVoucher(true)}
+                whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
+                className="px-4 py-2.5 rounded-2xl text-white font-black text-xs flex items-center gap-1.5 shrink-0"
+                style={{ background: `linear-gradient(135deg,${color},${color}CC)` }}>
+                <Store size={12} /> 매장 제시하기
+              </motion.button>
+            ) : coupon.isUsed ? (
+              <button onClick={() => setShowVoucher(true)}
+                className="px-3 py-2 rounded-xl text-xs font-black border border-gray-200 text-gray-400">
+                상세 보기
+              </button>
+            ) : null}
           </div>
         </div>
-      </div>
-    </motion.div>
+      </motion.div>
+
+      {/* Voucher modal */}
+      <AnimatePresence>
+        {showVoucher && (
+          <VoucherModal
+            coupon={coupon}
+            onClose={() => setShowVoucher(false)}
+            onMarkUsed={handleMarkUsed}
+            isMarkingUsed={isUsing}
+          />
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export function MyPage() {
   const { user, signOut, accessToken } = useAuth();
-  const { stampCount, entries } = useStamp();
+  const { stampCount } = useStamp();
   const navigate = useNavigate();
 
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -327,7 +356,7 @@ export function MyPage() {
   const [isLoadingCoupons, setIsLoadingCoupons] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [usingCouponId, setUsingCouponId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'coupons' | 'history' | 'entries'>('coupons');
+  const [activeTab, setActiveTab] = useState<'coupons' | 'history'>('coupons');
   const [newCouponAlert, setNewCouponAlert] = useState(false);
 
   const displayName = user?.user_metadata?.name || user?.email?.split('@')[0] || '게스트';
@@ -337,7 +366,6 @@ export function MyPage() {
 
   const unusedCount = coupons.filter((c) => !c.isUsed).length;
 
-  // ── Load coupons ────────────────────────────────────────────────────────────
   const loadCoupons = useCallback(async () => {
     if (!accessToken) return;
     setIsLoadingCoupons(true);
@@ -347,14 +375,10 @@ export function MyPage() {
       });
       const d = await res.json();
       setCoupons(d.coupons || []);
-    } catch (err) {
-      console.error('Failed to load coupons:', err);
-    } finally {
-      setIsLoadingCoupons(false);
-    }
+    } catch (err) { console.error('Failed to load coupons:', err); }
+    finally { setIsLoadingCoupons(false); }
   }, [accessToken]);
 
-  // ── Load roulette history ────────────────────────────────────────────────────
   const loadHistory = useCallback(async () => {
     setIsLoadingHistory(true);
     try {
@@ -364,11 +388,8 @@ export function MyPage() {
       });
       const d = await res.json();
       setSpinHistory(d.history || []);
-    } catch (err) {
-      console.error('Failed to load history:', err);
-    } finally {
-      setIsLoadingHistory(false);
-    }
+    } catch (err) { console.error('Failed to load history:', err); }
+    finally { setIsLoadingHistory(false); }
   }, [accessToken, deviceId]);
 
   useEffect(() => {
@@ -376,18 +397,13 @@ export function MyPage() {
     loadHistory();
   }, [loadCoupons, loadHistory]);
 
-  // Check if there are newly claimed coupons (from pending)
   useEffect(() => {
     if (coupons.length > 0) {
-      const hasRecent = coupons.some((c) => {
-        const issued = new Date(c.issuedAt);
-        return (Date.now() - issued.getTime()) < 60 * 1000; // issued within last 60s
-      });
+      const hasRecent = coupons.some((c) => (Date.now() - new Date(c.issuedAt).getTime()) < 60000);
       if (hasRecent) setNewCouponAlert(true);
     }
   }, [coupons]);
 
-  // ── Use coupon ─────────────────────────────────────────────────────────────
   const handleUseCoupon = async (couponId: string) => {
     if (!accessToken) return;
     setUsingCouponId(couponId);
@@ -401,25 +417,19 @@ export function MyPage() {
       if (d.coupon) {
         setCoupons((prev) => prev.map((c) => c.couponId === couponId ? d.coupon : c));
       }
-    } catch (err) {
-      console.error('Failed to use coupon:', err);
-    } finally {
-      setUsingCouponId(null);
-    }
+    } catch (err) { console.error('Failed to use coupon:', err); }
+    finally { setUsingCouponId(null); }
   };
 
-  const handleSignOut = () => {
-    signOut();
-    navigate('/');
-  };
+  const handleSignOut = () => { signOut(); navigate('/'); };
 
-  const nextMilestoneCount = [2, 4, 5, 7, 10].find((n) => n > stampCount) ?? 10;
-  const remainingToNext = Math.max(0, nextMilestoneCount - stampCount);
+  const nextMilestone = [4, 7, 10].find((n) => n > stampCount) ?? 10;
 
   return (
     <div style={{ backgroundColor: '#F8FAFF', minHeight: '100vh' }}>
-      {/* Header */}
-      <div className="text-white py-8 px-4" style={{ background: `linear-gradient(135deg, ${GREEN}, #00C853)` }}>
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <div className="text-white py-8 px-4" style={{ background: `linear-gradient(135deg,${GREEN},#00C853)` }}>
         <div className="max-w-2xl mx-auto">
           <div className="flex items-center justify-between mb-5">
             <p className="text-green-100 text-sm font-black">마이페이지</p>
@@ -452,12 +462,11 @@ export function MyPage() {
           </div>
 
           {/* Quick stats */}
-          <div className="grid grid-cols-4 gap-2 mt-5">
+          <div className="grid grid-cols-3 gap-2 mt-5">
             {[
               { label: '스탬프', value: stampCount, suffix: '/10', color: 'white' },
-              { label: '교환권', value: unusedCount, suffix: '개', color: unusedCount > 0 ? YELLOW : 'white' },
-              { label: '룰렛', value: spinHistory.length, suffix: '회', color: 'white' },
-              { label: '응모권', value: (entries.tshirt77 ? 1 : 0) + (entries.korail ? 1 : 0), suffix: '개', color: 'white' },
+              { label: '미사용 증정권', value: unusedCount, suffix: '개', color: unusedCount > 0 ? YELLOW : 'white' },
+              { label: '룰렛 참여', value: spinHistory.length, suffix: '회', color: 'white' },
             ].map((stat) => (
               <div key={stat.label} className="rounded-2xl p-2.5 text-center"
                 style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}>
@@ -474,11 +483,11 @@ export function MyPage() {
       {/* New coupon alert */}
       <AnimatePresence>
         {newCouponAlert && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-            className="overflow-hidden"
-            style={{ backgroundColor: '#FFD740' }}>
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }} className="overflow-hidden"
+            style={{ backgroundColor: YELLOW }}>
             <div className="max-w-2xl mx-auto px-4 py-2.5 flex items-center justify-between">
-              <p className="text-sm font-black" style={{ color: '#1a1a1a' }}>🎫 새 교환권이 발급되었어요!</p>
+              <p className="text-sm font-black text-gray-900">🎫 새 증정권이 발급되었어요!</p>
               <button onClick={() => setNewCouponAlert(false)} className="text-xs font-black opacity-50 hover:opacity-100">✕</button>
             </div>
           </motion.div>
@@ -486,14 +495,15 @@ export function MyPage() {
       </AnimatePresence>
 
       <div className="max-w-2xl mx-auto px-4 py-5">
-        {/* Guest login prompt */}
+
+        {/* Guest prompt */}
         {isGuest && (
           <div className="bg-white rounded-3xl shadow-sm border-2 p-5 mb-4" style={{ borderColor: '#F3F4F6' }}>
             <div className="flex items-start gap-3">
               <span className="text-2xl shrink-0">🔐</span>
               <div className="flex-1">
-                <p className="font-black text-sm text-gray-900 mb-1">로그인하고 교환권을 받으세요!</p>
-                <p className="text-xs text-gray-500 mb-3">룰렛 교환권 · 스탬프 영구 보관 · 응모권 관리</p>
+                <p className="font-black text-sm text-gray-900 mb-1">로그인하고 증정권을 받으세요!</p>
+                <p className="text-xs text-gray-500 mb-3">룰렛 증정권 저장 · 스탬프 영구 보관 · 응모권 관리</p>
                 <div className="flex gap-2">
                   <Link to="/login" className="flex-1 py-2.5 text-center rounded-xl text-white text-sm font-black hover:opacity-90"
                     style={{ backgroundColor: GREEN }}>로그인</Link>
@@ -507,15 +517,12 @@ export function MyPage() {
         {/* Tab Nav */}
         <div className="flex gap-1.5 mb-4 p-1.5 bg-white rounded-2xl shadow-sm border" style={{ borderColor: '#F3F4F6' }}>
           {([
-            { key: 'coupons', label: '내 교환권', icon: '🎫', badge: unusedCount > 0 ? unusedCount : null },
+            { key: 'coupons', label: '내 증정권', icon: '🎫', badge: unusedCount > 0 ? unusedCount : null },
             { key: 'history', label: '룰렛 이력', icon: '🎰', badge: null },
-            { key: 'entries', label: '응모권', icon: '🎟️', badge: null },
           ] as const).map((tab) => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-black transition-all relative"
-              style={activeTab === tab.key
-                ? { backgroundColor: GREEN, color: 'white' }
-                : { color: '#6B7280' }}>
+              style={activeTab === tab.key ? { backgroundColor: GREEN, color: 'white' } : { color: '#6B7280' }}>
               {tab.icon} {tab.label}
               {tab.badge !== null && (
                 <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs font-black text-white"
@@ -525,14 +532,14 @@ export function MyPage() {
           ))}
         </div>
 
-        {/* ── Tab: Coupons ─────────────────────────────────────────────────── */}
+        {/* ── Tab: Coupons ────────────────────────────────────────────────── */}
         {activeTab === 'coupons' && (
           <div>
             {!user ? (
               <div className="bg-white rounded-3xl p-8 text-center border-2" style={{ borderColor: '#F3F4F6' }}>
                 <p className="text-4xl mb-3">🔐</p>
                 <p className="font-black text-gray-700 mb-1">로그인이 필요해요</p>
-                <p className="text-xs text-gray-400 mb-4">교환권은 로그인 후 발급됩니다</p>
+                <p className="text-xs text-gray-400 mb-4">증정권은 로그인 후 발급됩니다</p>
                 <Link to="/login"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-black hover:opacity-90"
                   style={{ backgroundColor: GREEN }}>로그인하기</Link>
@@ -546,7 +553,7 @@ export function MyPage() {
             ) : coupons.length === 0 ? (
               <div className="bg-white rounded-3xl p-10 text-center border-2" style={{ borderColor: '#F3F4F6' }}>
                 <p className="text-5xl mb-3">🎫</p>
-                <p className="font-black text-gray-700 mb-1">아직 교환권이 없어요</p>
+                <p className="font-black text-gray-700 mb-1">아직 증정권이 없어요</p>
                 <p className="text-xs text-gray-400 mb-5">매장 QR을 스캔하고 룰렛에 참여해보세요!</p>
                 <Link to="/map"
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-black hover:opacity-90"
@@ -561,10 +568,10 @@ export function MyPage() {
                   style={{ backgroundColor: '#FFF9E6', border: '1.5px solid #FCD34D' }}>
                   <span className="text-lg shrink-0">💡</span>
                   <div>
-                    <p className="font-black text-xs mb-0.5" style={{ color: '#92400E' }}>교환권 사용 방법</p>
-                    <p className="text-xs" style={{ color: '#B45309' }}>
-                      🥤 사이다 1+1: 편의점 계산대에서 앱 화면 제시<br />
-                      👕 한정판 티셔츠: 캠페인 사이트에서 배송 신청
+                    <p className="font-black text-xs mb-0.5" style={{ color: '#92400E' }}>매장 증정권 사용 방법</p>
+                    <p className="text-xs leading-relaxed" style={{ color: '#B45309' }}>
+                      "매장 제시하기" 버튼을 눌러 증정권 화면을 매장 직원에게 보여주세요.<br />
+                      수령 후 반드시 "사용 완료 처리"를 눌러주세요.
                     </p>
                   </div>
                 </div>
@@ -574,10 +581,10 @@ export function MyPage() {
                   <CouponCard
                     key={coupon.couponId}
                     coupon={coupon}
-                    onUse={handleUseCoupon}
+                    onMarkUsed={handleUseCoupon}
                     isUsing={usingCouponId === coupon.couponId}
                     accessToken={accessToken}
-                    onCouponUpdate={(updated: Coupon) =>
+                    onCouponUpdate={(updated) =>
                       setCoupons((prev) => prev.map((c) => c.couponId === updated.couponId ? updated : c))
                     }
                   />
@@ -629,6 +636,7 @@ export function MyPage() {
               <div className="space-y-2.5">
                 {spinHistory.map((item, i) => {
                   const color = item.prizeColor || '#6B7280';
+                  const isRespin = i > 0;
                   return (
                     <motion.div key={i} initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: i * 0.03 }}
@@ -640,11 +648,15 @@ export function MyPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="font-black text-sm text-gray-900 truncate">{item.prizeName}</p>
-                        <p className="text-xs text-gray-500 mt-0.5 truncate">📍 {item.storeName || item.storeId}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">
+                          <Store size={9} className="inline mr-1" />{item.storeName || item.storeId}
+                        </p>
                       </div>
                       <div className="text-right shrink-0">
                         <span className="text-xs px-2 py-0.5 rounded-full font-black block mb-1"
-                          style={{ backgroundColor: color + '15', color }}>당첨!</span>
+                          style={{ backgroundColor: color + '15', color }}>
+                          증정권 발급
+                        </span>
                         <p className="text-xs text-gray-400">
                           {new Date(item.timestamp).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })}
                         </p>
@@ -653,103 +665,6 @@ export function MyPage() {
                   );
                 })}
                 <p className="text-center text-xs text-gray-400">총 {spinHistory.length}회 참여</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── Tab: Entries ─────────────────────────────────────────────────── */}
-        {activeTab === 'entries' && (
-          <div className="space-y-3">
-            {/* Info banner */}
-            <div className="rounded-2xl p-4" style={{ backgroundColor: '#FFFBEB', border: '1.5px solid #FCD34D' }}>
-              <p className="font-black text-sm mb-1.5" style={{ color: '#92400E' }}>🎟️ 스탬프 특별 응모권</p>
-              <p className="text-xs" style={{ color: '#B45309' }}>
-                <span className="font-black">4번째 스탬프</span> → 👕 한정판 티셔츠 77명 추첨<br />
-                <span className="font-black">7번째 스탬프</span> → 🚂 코레일 기차 여행권 추첨
-              </p>
-            </div>
-
-            {!user ? (
-              <div className="bg-white rounded-3xl p-8 text-center border-2" style={{ borderColor: '#F3F4F6' }}>
-                <p className="text-4xl mb-3">🔐</p>
-                <p className="font-black text-gray-700 mb-1">로그인이 필요해요</p>
-                <p className="text-xs text-gray-400 mb-4">응모권은 로그인 후 자동 등록됩니다</p>
-                <Link to="/login"
-                  className="inline-flex px-5 py-2.5 rounded-xl text-white text-sm font-black"
-                  style={{ backgroundColor: GREEN }}>로그인하기</Link>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {/* T-shirt 77 */}
-                <div className={`flex items-center gap-4 p-5 rounded-3xl border-2 ${entries.tshirt77 ? '' : 'opacity-50'}`}
-                  style={{
-                    backgroundColor: entries.tshirt77 ? '#FEF2F2' : '#F9FAFB',
-                    borderColor: entries.tshirt77 ? '#FECACA' : '#E5E7EB',
-                  }}>
-                  <span className="text-4xl shrink-0">👕</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black" style={{ color: entries.tshirt77 ? '#EF4444' : '#9CA3AF', fontSize: '15px' }}>
-                      한정판 티셔츠 77명 추첨
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">칠성사이다 × 김밥대장 콜라보</p>
-                    {entries.tshirt77 ? (
-                      <p className="text-xs font-black mt-1" style={{ color: '#EF4444' }}>
-                        ✓ 등록: {new Date(entries.tshirt77.registeredAt).toLocaleDateString('ko-KR')}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-400 mt-1">
-                        스탬프 4번 달성 시 자동 등록 ({Math.max(0, 4 - stampCount)}개 남음)
-                      </p>
-                    )}
-                  </div>
-                  {entries.tshirt77 ? (
-                    <span className="text-xs px-3 py-1.5 rounded-xl text-white font-black shrink-0"
-                      style={{ backgroundColor: '#EF4444' }}>등록됨 ✓</span>
-                  ) : (
-                    <div className="shrink-0 w-10 h-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 text-sm font-black">
-                      {Math.max(0, 4 - stampCount)}
-                    </div>
-                  )}
-                </div>
-
-                {/* Korail */}
-                <div className={`flex items-center gap-4 p-5 rounded-3xl border-2 ${entries.korail ? '' : 'opacity-50'}`}
-                  style={{
-                    backgroundColor: entries.korail ? '#FFFBEB' : '#F9FAFB',
-                    borderColor: entries.korail ? '#FCD34D' : '#E5E7EB',
-                  }}>
-                  <span className="text-4xl shrink-0">🚂</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-black" style={{ color: entries.korail ? '#E8A000' : '#9CA3AF', fontSize: '15px' }}>
-                      코레일 기차 여행권 추첨
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">KTX 포함 전국 기차 여행권</p>
-                    {entries.korail ? (
-                      <p className="text-xs font-black mt-1" style={{ color: '#E8A000' }}>
-                        ✓ 등록: {new Date(entries.korail.registeredAt).toLocaleDateString('ko-KR')}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-gray-400 mt-1">
-                        스탬프 7번 달성 시 자동 등록 ({Math.max(0, 7 - stampCount)}개 남음)
-                      </p>
-                    )}
-                  </div>
-                  {entries.korail ? (
-                    <span className="text-xs px-3 py-1.5 rounded-xl text-white font-black shrink-0"
-                      style={{ backgroundColor: '#E8A000' }}>등록됨 ✓</span>
-                  ) : (
-                    <div className="shrink-0 w-10 h-10 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-300 text-sm font-black">
-                      {Math.max(0, 7 - stampCount)}
-                    </div>
-                  )}
-                </div>
-
-                <Link to="/stamps"
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-white text-sm font-black"
-                  style={{ backgroundColor: GREEN }}>
-                  <Stamp size={14} /> 스탬프 더 모으기 <ChevronRight size={13} />
-                </Link>
               </div>
             )}
           </div>

@@ -46,25 +46,25 @@ function generateId(): string {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const DAILY_SPIN_LIMIT = 2;
+const DAILY_SPIN_LIMIT = 3;  // 1 official + 2 re-spins per store per day
 const TSHIRT_STOCK_KEY = 'roulette:tshirt_remaining';
 const TSHIRT_TOTAL = 50;
 
 // Actual prizes (2 types only)
 const ROULETTE_PRIZES = [
   {
-    id: 'soda-1plus1',
-    name: '칠성사이다 1+1 교환권',
+    id: 'soda-free',
+    name: '칠성사이다 무료 증정권',
     emoji: '🥤',
-    description: '편의점 칠성사이다 1+1 교환권 (GS25·CU·세븐일레븐)',
+    description: '이 증정권을 매장 직원에게 보여주시면 칠성사이다 캔 1개를 무료로 받으실 수 있어요.',
     color: '#0057B8',
     weight: 90,
   },
   {
     id: 'tshirt',
-    name: '한정판 티셔츠',
+    name: '한정판 티셔츠 증정권',
     emoji: '👕',
-    description: '칠성사이다 × 김밥대장 콜라보 한정판 티셔츠 (50개 한정)',
+    description: '이 증정권을 매장 직원에게 보여주시면 칠성사이다 × 김밥대장 콜라보 한정판 티셔츠(50개 한정)를 받으실 수 있어요.',
     color: '#EF4444',
     weight: 10,
   },
@@ -338,11 +338,11 @@ app.post("/make-server-66d4cc36/roulette/spin", async (c) => {
     const today = getTodayKST();
     const dailyKey = `roulette:daily:${userKey}:${storeId}:${today}`;
 
-    // ── 하루 2회 제한 (서버사이드) ──
+    // ── 매장당 하루 3회 제한 (1회 공식 참여 + 2회 다시 돌리기) ──
     const todayResults: SpinResult[] = (await kv.get(dailyKey)) ?? [];
     if (todayResults.length >= DAILY_SPIN_LIMIT) {
       return c.json({
-        error: `오늘은 이미 ${DAILY_SPIN_LIMIT}번 참여하셨습니다. 내일 다시 도전해주세요! 🙏`,
+        error: `이 매장에서 오늘 이미 모든 기회를 사용하셨어요. (1회 참여 + 다시 돌리기 2회 완료) 내일 다시 도전해주세요! 🙏`,
         spinsToday: todayResults.length,
         maxSpins: DAILY_SPIN_LIMIT,
       }, 400);
@@ -460,8 +460,8 @@ app.post("/make-server-66d4cc36/roulette/coupon/use", async (c) => {
     const coupons: Coupon[] = (await kv.get(`coupons:${user.id}`)) ?? [];
     const idx = coupons.findIndex((c) => c.couponId === couponId);
 
-    if (idx === -1) return c.json({ error: "교환권을 찾을 수 없습니다." }, 404);
-    if (coupons[idx].isUsed) return c.json({ error: "이미 사용된 교환권입니다." }, 400);
+    if (idx === -1) return c.json({ error: "증정권을 찾을 수 없습니다." }, 404);
+    if (coupons[idx].isUsed) return c.json({ error: "이미 사용된 증정권입니다." }, 400);
 
     coupons[idx].isUsed = true;
     coupons[idx].usedAt = new Date().toISOString();
@@ -471,7 +471,7 @@ app.post("/make-server-66d4cc36/roulette/coupon/use", async (c) => {
     return c.json({ coupon: coupons[idx] });
   } catch (err) {
     console.log("Use coupon error:", err);
-    return c.json({ error: `교환권 사용 오류: ${err}` }, 500);
+    return c.json({ error: `증정권 사용 오류: ${err}` }, 500);
   }
 });
 
@@ -486,7 +486,7 @@ app.post("/make-server-66d4cc36/roulette/claim", async (c) => {
     const body = await c.req.json();
     const { prizeId, prizeName, prizeEmoji, prizeColor, storeId, storeName, couponId, timestamp } = body;
 
-    if (!prizeId || !couponId) return c.json({ error: "유효하지 않은 응모 데이터입니다." }, 400);
+    if (!prizeId || !couponId) return c.json({ error: "유효하지 않은 증정권 데이터입니다." }, 400);
 
     // Check if coupon already exists (prevent double claim)
     const existing: Coupon[] = (await kv.get(`coupons:${user.id}`)) ?? [];
@@ -506,7 +506,7 @@ app.post("/make-server-66d4cc36/roulette/claim", async (c) => {
     return c.json({ coupon: newCoupon });
   } catch (err) {
     console.log("Claim error:", err);
-    return c.json({ error: `교환권 등록 오류: ${err}` }, 500);
+    return c.json({ error: `증정권 등록 오류: ${err}` }, 500);
   }
 });
 
@@ -527,13 +527,13 @@ app.post("/make-server-66d4cc36/roulette/coupon/shipping", async (c) => {
     const coupons: Coupon[] = (await kv.get(`coupons:${user.id}`)) ?? [];
     const coupon = coupons.find((c) => c.couponId === couponId);
     if (!coupon) return c.json({ error: "교환권을 찾을 수 없습니다." }, 404);
-    if (coupon.prizeId !== 'tshirt') return c.json({ error: "티셔츠 교환권이 아닙니다." }, 400);
-    if (coupon.isUsed) return c.json({ error: "이미 사용된 교환권입니다." }, 400);
+    if (coupon.prizeId !== 'tshirt') return c.json({ error: "티셔츠 증정권이 아닙니다." }, 400);
+    if (coupon.isUsed) return c.json({ error: "이미 사용된 증정권입니다." }, 400);
 
     // Check if shipping already requested
     const existingShipping = await kv.get(`shipping:${user.id}:${couponId}`);
     if (existingShipping) {
-      return c.json({ error: "이미 배송 신청된 교환권입니다.", shipping: existingShipping }, 400);
+      return c.json({ error: "이미 배송 신청된 증정권입니다.", shipping: existingShipping }, 400);
     }
 
     const shippingData = {

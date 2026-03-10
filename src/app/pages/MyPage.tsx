@@ -172,7 +172,7 @@ export function MyPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-black text-sm text-gray-900">리워드 안내</p>
-              <p className="text-xs text-gray-400">티셔츠 · 코레일 여행권</p>
+              <p className="text-xs text-gray-400">티셔츠 · 코레일 해랑열차</p>
             </div>
             <ChevronRight size={18} className="text-gray-300 shrink-0" />
           </Link>

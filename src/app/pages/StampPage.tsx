@@ -25,7 +25,7 @@ const MILESTONES = [
     color: '#E8A000',
     bg: '#FFFBEB',
     borderColor: '#FCD34D',
-    prize: '코레일 기차 여행권 추첨 (KTX 포함)',
+    prize: '코레일 해랑열차 탑승권 1명 추첨',
   },
 ];
 

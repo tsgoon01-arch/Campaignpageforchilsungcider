@@ -15,7 +15,7 @@ const STEPS = [
 
 const PRIZE_BADGES = [
   { stamps: 4,  emoji: '👕', label: '4스탬프', desc: '티셔츠 77명 추첨', color: '#EF4444', bg: '#FEF2F2' },
-  { stamps: 7,  emoji: '🚂', label: '7스탬프', desc: '코레일 여행권 추첨', color: '#E8A000', bg: '#FFFBEB' },
+  { stamps: 7,  emoji: '🚂', label: '7스탬프', desc: '해랑열차 1명 추첨', color: '#E8A000', bg: '#FFFBEB' },
 ];
 
 const GREEN    = '#2BAE4E';
@@ -52,8 +52,8 @@ const HERO_SLIDES = [
     line2: '리워드!',
     desc: (
       <>
-        4곳 방문 <strong style={{ color: YELLOW, fontWeight: 700 }}>👕 티셔츠 77명 추첨</strong> · 7곳 방문{' '}
-        <strong style={{ color: '#86EFAC', fontWeight: 700 }}>🚂 코레일 여행권 추첨</strong>
+        4곳 방문 <strong style={{ color: YELLOW, fontWeight: 700 }}>👕 티셔�� 77명 추첨</strong> · 7곳 방문{' '}
+        <strong style={{ color: '#86EFAC', fontWeight: 700 }}>🚂 해랑열차 1명 추첨</strong>
         <br />김밥집을 방문하면 스탬프가 자동으로 쌓여요!
       </>
     ),
@@ -349,12 +349,12 @@ function HeroSection({ stampCount }: { stampCount: number }) {
                     <span style={{ fontSize: 36 }}>🚂</span>
                     <div>
                       <p style={{ color: '#FCD34D', fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', marginBottom: 2 }}>7스탬프 리워드</p>
-                      <p style={{ color: 'white', fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>코레일 여행권</p>
-                      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>KTX 포함 추첨</p>
+                      <p style={{ color: 'white', fontSize: 13, fontWeight: 800, lineHeight: 1.2 }}>해랑열차</p>
+                      <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10 }}>1명 추첨</p>
                     </div>
                   </div>
                   <div style={{ marginTop: 10, padding: '5px 10px', borderRadius: 8, backgroundColor: 'rgba(232,160,0,0.3)', textAlign: 'center' }}>
-                    <p style={{ color: '#FCD34D', fontSize: 10, fontWeight: 700 }}>🚄 KTX 왕복 10명 · 일반 20명</p>
+                    <p style={{ color: '#FCD34D', fontSize: 10, fontWeight: 700 }}>🚄 코레일 해랑열차 탑승권</p>
                   </div>
                 </motion.div>
 
@@ -451,7 +451,7 @@ function HeroSection({ stampCount }: { stampCount: number }) {
           style={{ display: 'flex', whiteSpace: 'nowrap' }}>
           {[...Array(2)].map((_, rep) => (
             <span key={rep} style={{ display: 'inline-flex', alignItems: 'center', gap: '28px', paddingRight: '28px' }}>
-              {['🎰 룰렛 이벤트 진행 중', '칠성사이다 × 스탬프 투어', '김밥엔 사이다!', '서울 김밥 핫플 10곳', '매장당 1회 참여 + 다시 돌리기 2회', '2026 김밥대장 로드', '👕 4스탬프 티셔츠 추첨', '🚂 7스탬프 코레일 여행권'].map((txt, i) => (
+              {['🎰 룰렛 이벤트 진행 중', '칠성사이다 × 스탬프 투어', '김밥엔 사이다!', '서울 김밥 핫플 10곳', '매장당 1회 참여 + 다시 돌리기 2회', '2026 김밥대장 로드', '👕 4스탬프 티셔츠 추첨', '🚂 7스탬프 해랑열차'].map((txt, i) => (
                 <span key={i} style={{ fontSize: '11px', fontWeight: 700, color: i % 2 === 0 ? YELLOW : GREEN, letterSpacing: '1.2px' }}>
                   ★ {txt}
                 </span>

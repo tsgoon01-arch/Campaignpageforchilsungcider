@@ -631,7 +631,7 @@ export function RewardsPage() {
           </div>
           <p className="text-xs text-gray-400 mt-1.5">
             {nextMilestone === 4 && `${4 - stampCount}개 더 모으면 👕 티셔츠 추첨 응모!`}
-            {nextMilestone === 7 && `${7 - stampCount}개 더 모으면 🚂 코레일 여행권!`}
+            {nextMilestone === 7 && `${7 - stampCount}개 더 모으면 🚂 코레일 해랑열차!`}
             {nextMilestone === 10 && `${10 - stampCount}개 더 모으면 전체 리워드 달성!`}
           </p>
         </div>

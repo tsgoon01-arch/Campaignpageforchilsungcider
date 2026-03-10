@@ -4,11 +4,6 @@ import { useForm } from 'react-hook-form';
 import { Eye, EyeOff, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useAuth } from '../context/AuthContext';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
-
-const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-66d4cc36`;
-const PENDING_PRIZE_KEY = 'pending-roulette-prize';
-const SESSION_KEY = 'chilsung-auth-session';
 
 interface LoginForm {
   email: string;
@@ -38,35 +33,6 @@ function KakaoLogo() {
   );
 }
 
-// ── Claim pending prizes from sessionStorage ──────────────────────────────────
-async function claimPendingPrizes(accessToken: string) {
-  try {
-    const raw = sessionStorage.getItem(PENDING_PRIZE_KEY);
-    if (!raw) return;
-    const pending: object[] = JSON.parse(raw);
-    if (!pending.length) return;
-
-    const results = await Promise.allSettled(
-      pending.map((prize) =>
-        fetch(`${SERVER_URL}/roulette/claim`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(prize),
-        }).then((r) => r.json())
-      )
-    );
-
-    const claimed = results.filter((r) => r.status === 'fulfilled').length;
-    console.log(`Claimed ${claimed} pending prize(s)`);
-    sessionStorage.removeItem(PENDING_PRIZE_KEY);
-  } catch (err) {
-    console.error('Failed to claim pending prizes:', err);
-  }
-}
-
 export function LoginPage() {
   const { signIn, signInSocial } = useAuth();
   const navigate = useNavigate();
@@ -76,30 +42,10 @@ export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<'naver' | 'kakao' | null>(null);
   const [showEmailForm, setShowEmailForm] = useState(false);
-  const [claimStatus, setClaimStatus] = useState('');
 
   const returnPath = searchParams.get('return') || '/';
-  const hasClaim = searchParams.get('claim') === '1';
-  const hasPendingPrize = !!sessionStorage.getItem(PENDING_PRIZE_KEY);
 
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
-
-  const afterLogin = async () => {
-    // Check pending prizes
-    if (hasPendingPrize) {
-      setClaimStatus('교환권 등록 중...');
-      // Get fresh token from localStorage
-      const raw = localStorage.getItem(SESSION_KEY);
-      const token = raw ? JSON.parse(raw)?.access_token : null;
-      if (token) {
-        await claimPendingPrizes(token);
-        setClaimStatus('교환권 등록 완료! 마이페이지로 이동합니다...');
-        setTimeout(() => navigate(returnPath), 800);
-        return;
-      }
-    }
-    navigate(returnPath);
-  };
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);
@@ -109,7 +55,7 @@ export function LoginPage() {
     if (result.error) {
       setServerError(result.error);
     } else {
-      await afterLogin();
+      navigate(returnPath);
     }
   };
 
@@ -121,7 +67,7 @@ export function LoginPage() {
     if (result.error) {
       setServerError(result.error);
     } else {
-      await afterLogin();
+      navigate(returnPath);
     }
   };
 
@@ -151,29 +97,10 @@ export function LoginPage() {
         </div>
 
         <div className="px-8 py-7">
-          {/* Pending prize notice */}
-          {(hasClaim || hasPendingPrize) && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-              className="mb-4 px-4 py-3 rounded-xl text-sm"
-              style={{ backgroundColor: '#FFFBEB', border: '1.5px solid #FCD34D' }}>
-              <p className="font-black text-sm mb-0.5" style={{ color: '#92400E' }}>🎫 교환권 대기 중!</p>
-              <p className="text-xs text-gray-500">로그인하면 룰렛 당첨 교환권이 자동으로 발급됩니다.</p>
-            </motion.div>
-          )}
-
-          {/* Claim status */}
-          {claimStatus && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="mb-4 px-4 py-3 rounded-xl text-sm text-center font-black"
-              style={{ backgroundColor: '#F0FDF4', border: '1px solid #BBF7D0', color: GREEN }}>
-              ✅ {claimStatus}
-            </motion.div>
-          )}
-
           {serverError && (
             <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
               className="mb-4 px-4 py-3 rounded-xl text-sm text-red-700 bg-red-50 border border-red-200">
-              ⚠️ {serverError}
+              {serverError}
             </motion.div>
           )}
 
@@ -181,7 +108,7 @@ export function LoginPage() {
           <div className="space-y-3 mb-4">
             <button
               onClick={() => handleSocialLogin('naver')}
-              disabled={!!socialLoading || isLoading || !!claimStatus}
+              disabled={!!socialLoading || isLoading}
               className="w-full py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all hover:opacity-90 disabled:opacity-60"
               style={{ backgroundColor: NAVER_GREEN, fontWeight: 700, fontSize: '15px', color: 'white' }}
             >
@@ -191,7 +118,7 @@ export function LoginPage() {
 
             <button
               onClick={() => handleSocialLogin('kakao')}
-              disabled={!!socialLoading || isLoading || !!claimStatus}
+              disabled={!!socialLoading || isLoading}
               className="w-full py-3.5 rounded-xl flex items-center justify-center gap-3 transition-all hover:opacity-90 disabled:opacity-60"
               style={{ backgroundColor: KAKAO_YELLOW, fontWeight: 700, fontSize: '15px', color: '#3C1E1E' }}
             >
@@ -203,7 +130,7 @@ export function LoginPage() {
           {/* Demo notice */}
           <div className="mb-4 px-3 py-2 rounded-xl text-xs text-center"
             style={{ backgroundColor: '#FFF9E6', color: '#92400E', border: '1px solid #FCD34D' }}>
-            💡 데모 환경: 간편 로그인은 테스트 계정으로 처리됩니다.
+            💡 데모 환경: 클릭 즉시 데모 계정으로 로그인됩니다.
           </div>
 
           {/* Divider */}
@@ -269,7 +196,7 @@ export function LoginPage() {
                 {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
               </div>
 
-              <button type="submit" disabled={isLoading || !!claimStatus}
+              <button type="submit" disabled={isLoading}
                 className="w-full py-3.5 rounded-xl text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90 disabled:opacity-60"
                 style={{ backgroundColor: GREEN, fontWeight: 700, fontSize: '15px' }}>
                 {isLoading ? <><Loader2 size={18} className="animate-spin" /> 로그인 중...</> : '🔐 이메일 로그인'}

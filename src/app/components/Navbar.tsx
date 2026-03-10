@@ -12,7 +12,7 @@ const navItems = [
   { path: '/', label: '홈', icon: Home },
   { path: '/map', label: '칠성 김밥 지도', icon: MapPin },
   { path: '/stamps', label: '내 스탬프', icon: Stamp },
-  { path: '/prizes', label: '내 리워드', icon: Gift },
+  { path: '/rewards', label: '내 리워드', icon: Gift },
 ];
 
 export function Navbar() {

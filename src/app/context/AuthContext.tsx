@@ -1,20 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { projectId, publicAnonKey } from '/utils/supabase/info';
 
-// ── Supabase Auth REST API (no client library needed) ─────────────────────────
-const AUTH_URL = `https://${projectId}.supabase.co/auth/v1`;
-const SERVER_URL = `https://${projectId}.supabase.co/functions/v1/make-server-66d4cc36`;
+// ── Demo Auth (서버 호출 없이 로컬 세션만 사용) ──────────────────────────────
 const SESSION_KEY = 'chilsung-auth-session';
 
 interface SessionUser {
   id: string;
   email: string;
-  user_metadata: { name?: string };
+  user_metadata: { name?: string; provider?: string };
 }
 
 interface StoredSession {
-  access_token: string;
   user: SessionUser;
+  access_token?: string; // 데모 환경에서도 다른 페이지의 isLoggedIn() 체크를 위해 포함
 }
 
 interface AuthContextType {
@@ -27,7 +24,7 @@ interface AuthContextType {
   accessToken: string | null;
 }
 
-// Persist context across HMR re-evaluations so the same object is reused
+// Persist context across HMR re-evaluations
 const AUTH_CTX_KEY = '__chilsung_auth_ctx__';
 if (!(globalThis as any)[AUTH_CTX_KEY]) {
   (globalThis as any)[AUTH_CTX_KEY] = createContext<AuthContextType | null>(null);
@@ -42,6 +39,7 @@ function loadSession(): StoredSession | null {
     if (!raw) return null;
     return JSON.parse(raw) as StoredSession;
   } catch {
+    localStorage.removeItem(SESSION_KEY);
     return null;
   }
 }
@@ -54,133 +52,73 @@ function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
+/** 데모 유저 ID 생성 */
+function generateDemoId(): string {
+  return `demo-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
 // ── Provider ──────────────────────────────────────────────────────────────────
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
-  const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore session on mount
+  // ── Restore session on mount ────────────────────────────────────────────────
   useEffect(() => {
     const session = loadSession();
-    if (session) {
+    if (session?.user) {
       setUser(session.user);
-      setAccessToken(session.access_token);
     }
     setLoading(false);
   }, []);
 
-  const signIn = async (email: string, password: string): Promise<{ error?: string }> => {
-    try {
-      const res = await fetch(`${AUTH_URL}/token?grant_type=password`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': publicAnonKey,
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || data.error) {
-        console.error('Sign in error:', data.error_description || data.error);
-        if (data.error_description?.includes('Invalid login') || data.error?.includes('invalid')) {
-          return { error: '이메일 또는 비밀번호가 올바르지 않습니다.' };
-        }
-        return { error: data.error_description || data.error || '로그인에 실패했습니다.' };
-      }
-
-      const sessionUser: SessionUser = {
-        id: data.user?.id,
-        email: data.user?.email,
-        user_metadata: data.user?.user_metadata || {},
-      };
-      const stored: StoredSession = { access_token: data.access_token, user: sessionUser };
-      saveSession(stored);
-      setUser(sessionUser);
-      setAccessToken(data.access_token);
-      return {};
-    } catch (err) {
-      console.error('Sign in exception:', err);
-      return { error: `네트워크 오류가 발생했습니다: ${err}` };
-    }
+  // ── 데모 로그인 helper ──────────────────────────────────────────────────────
+  const demoLogin = (demoUser: SessionUser) => {
+    saveSession({ user: demoUser, access_token: 'demo-token' });
+    setUser(demoUser);
   };
 
+  // ── Sign In (이메일 — 데모: 서버 호출 없이 즉시 로그인) ─────────────────────
+  const signIn = async (email: string, _password: string): Promise<{ error?: string }> => {
+    const name = email.split('@')[0];
+    demoLogin({
+      id: generateDemoId(),
+      email,
+      user_metadata: { name },
+    });
+    return {};
+  };
+
+  // ── Sign Up (데모: 즉시 가입 + 로그인) ──────────────────────────────────────
+  const signUp = async (email: string, _password: string, name: string): Promise<{ error?: string }> => {
+    demoLogin({
+      id: generateDemoId(),
+      email,
+      user_metadata: { name },
+    });
+    return {};
+  };
+
+  // ── Social Sign In (데모: 네이버/카카오 즉시 로그인) ─────────────────────────
   const signInSocial = async (provider: 'naver' | 'kakao'): Promise<{ error?: string }> => {
-    try {
-      const providerName = provider === 'naver' ? '네이버' : '카카오';
-      const res = await fetch(`${SERVER_URL}/auth/social`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${publicAnonKey}`,
-        },
-        body: JSON.stringify({ provider, demoName: `${providerName} 데모 유저` }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || data.error) {
-        console.error('Social sign in error:', data.error);
-        return { error: data.error || `${providerName} 로그인에 실패했습니다.` };
-      }
-
-      const sessionUser: SessionUser = {
-        id: data.user?.id,
-        email: data.user?.email,
-        user_metadata: data.user?.user_metadata || {},
-      };
-      const stored: StoredSession = { access_token: data.access_token, user: sessionUser };
-      saveSession(stored);
-      setUser(sessionUser);
-      setAccessToken(data.access_token);
-      return {};
-    } catch (err) {
-      console.error('Social sign in exception:', err);
-      return { error: `네트워크 오류가 발생했습니다: ${err}` };
-    }
+    const providerName = provider === 'naver' ? '네이버' : '카카오';
+    const displayName = `${providerName} 유저`;
+    demoLogin({
+      id: generateDemoId(),
+      email: `${provider}_user@demo.chilsung.kr`,
+      user_metadata: { name: displayName, provider },
+    });
+    return {};
   };
 
-  const signUp = async (email: string, password: string, name: string): Promise<{ error?: string }> => {
-    try {
-      // Use server-side signup (admin API with email_confirm: true)
-      const res = await fetch(`${SERVER_URL}/auth/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${publicAnonKey}`,
-        },
-        body: JSON.stringify({ email, password, name }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        console.error('Sign up error:', data.error);
-        return { error: data.error || '회원가입에 실패했습니다.' };
-      }
-
-      // Auto sign-in after signup
-      const signInResult = await signIn(email, password);
-      if (signInResult.error) {
-        return { error: '가입 완료! 로그인 페이지에서 로그인해주세요.' };
-      }
-      return {};
-    } catch (err) {
-      console.error('Sign up exception:', err);
-      return { error: `서버 오류가 발생했습니다: ${err}` };
-    }
-  };
-
+  // ── Sign Out ────────────────────────────────────────────────────────────────
   const signOut = () => {
     clearSession();
     setUser(null);
-    setAccessToken(null);
   };
 
+  // accessToken은 항상 null → 서버 호출 대신 localStorage 폴백 사용
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInSocial, signOut, accessToken }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signInSocial, signOut, accessToken: null }}>
       {children}
     </AuthContext.Provider>
   );

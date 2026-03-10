@@ -1,3 +1,4 @@
+import { InfluencerSection } from '../components/InfluencerSection';
 import { Link } from 'react-router';
 import { MapPin, ChevronRight, Stamp } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -32,12 +33,16 @@ const HERO_SLIDES = [
     line2: '룰렛!',
     desc: (
       <>
-        칠성사이다 1+1 교환권 또는{' '}
+        칠성사이다 1+1 증정권 또는{' '}
         <strong style={{ color: YELLOW, fontWeight: 700 }}>한정판 티셔츠(50개)</strong>를 받아가세요!<br />
         매장 방문 후 QR 스캔 · <strong style={{ color: YELLOW }}>1회 참여 + 다시 돌리기 2회!</strong>
       </>
     ),
     isRoulette: true,
+    ctas: [
+      { to: '/event?store=daejang-hongdae&name=김밥대장 홍대본점', label: '🎰 룰렛 돌리러 가기!', style: 'yellow' as const },
+      { to: '/map', label: '🗺️ 참여 매장 찾기', style: 'green' as const },
+    ],
   },
   {
     bg: 'linear-gradient(135deg, #0A1F12 0%, #1A3A22 50%, #0A1F12 100%)',
@@ -54,6 +59,10 @@ const HERO_SLIDES = [
     ),
     isRoulette: false,
     isReward: true,
+    ctas: [
+      { to: '/map', label: '🗺️ 매장 방문하고 스탬프 모으기', style: 'green' as const },
+      { to: '/prizes', label: '🎁 리워드 확인하기', style: 'outline' as const },
+    ],
   },
 ];
 
@@ -308,7 +317,6 @@ function HeroSection({ stampCount }: { stampCount: number }) {
                 {/* 4스탬프 card */}
                 <motion.div
                   initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
-                  animate2={{ x: [0, -5, 0], y: [0, -6, 0] }}
                   style={{
                     background: 'rgba(239,68,68,0.18)',
                     border: '1.5px solid rgba(239,68,68,0.55)',
@@ -356,9 +364,7 @@ function HeroSection({ stampCount }: { stampCount: number }) {
                   <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, fontWeight: 600 }}>스탬프 달성 시 자동 응모 ↑</p>
                 </motion.div>
               </div>
-            ) : (
-              current.visuals && <FloatingEmojis emojis={current.visuals} />
-            )}
+            ) : null}
           </div>
 
           {/* Logo pill */}
@@ -375,14 +381,7 @@ function HeroSection({ stampCount }: { stampCount: number }) {
           </motion.div>
 
           {/* Campaign badge */}
-          <motion.div initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4, delay: 0.1 }}
-            style={{
-              position: 'absolute', top: '20px', right: '20px', zIndex: 5,
-              background: YELLOW, borderRadius: '100px', padding: '5px 13px',
-              fontSize: '11px', fontWeight: 700, color: '#1A1A1A',
-            }}>
-            🎁 경품 최대 200만원
-          </motion.div>
+          
 
           {/* Text content */}
           <div style={{
@@ -417,29 +416,27 @@ function HeroSection({ stampCount }: { stampCount: number }) {
               </p>
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                <Link to="/event" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  background: `linear-gradient(135deg, ${YELLOW}, #FFA000)`,
-                  color: '#1A1A1A', padding: '12px 22px', borderRadius: '100px',
-                  fontWeight: 800, fontSize: '14px', textDecoration: 'none',
-                  boxShadow: '0 0 24px rgba(255,215,64,0.45)',
-                }}>🎰 룰렛 돌리러 가기!</Link>
-
-                <Link to="/map" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  backgroundColor: GREEN, color: '#fff',
-                  padding: '12px 22px', borderRadius: '100px',
-                  fontWeight: 700, fontSize: '14px', textDecoration: 'none',
-                }}>🗺️ 참여 매장 찾기</Link>
-
-                <Link to="/mypage" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: '6px',
-                  backgroundColor: 'rgba(255,255,255,0.1)', color: '#fff',
-                  padding: '12px 22px', borderRadius: '100px',
-                  fontWeight: 600, fontSize: '14px', textDecoration: 'none',
-                  border: '1.5px solid rgba(255,255,255,0.3)',
-                  backdropFilter: 'blur(6px)',
-                }}>🎫 내 교환권</Link>
+                {current.ctas.map((cta, i) => (
+                  <Link key={i} to={cta.to} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: '6px',
+                    background: cta.style === 'yellow'
+                      ? `linear-gradient(135deg, ${YELLOW}, #FFA000)`
+                      : cta.style === 'green'
+                      ? GREEN
+                      : 'transparent',
+                    color: cta.style === 'yellow' ? '#1A1A1A' : '#fff',
+                    padding: '12px 22px', borderRadius: '100px',
+                    fontWeight: cta.style === 'yellow' ? 800 : 700,
+                    fontSize: '14px', textDecoration: 'none',
+                    ...(cta.style === 'yellow' ? { boxShadow: '0 0 24px rgba(255,215,64,0.45)' } : {}),
+                    ...(cta.style === 'outline' ? {
+                      backgroundColor: 'rgba(255,255,255,0.1)',
+                      border: '1.5px solid rgba(255,255,255,0.3)',
+                      backdropFilter: 'blur(6px)',
+                      fontWeight: 600,
+                    } : {}),
+                  }}>{cta.label}</Link>
+                ))}
               </div>
             </motion.div>
           </div>
@@ -467,138 +464,6 @@ function HeroSection({ stampCount }: { stampCount: number }) {
   );
 }
 
-// ─── VIP Partners Spotlight ────────────────────────────────────────────────────
-function VIPPartnersSection() {
-  const flagship = stores.find((s) => s.id === 'daejang-hongdae')!;
-  const gangnam  = stores.find((s) => s.id === 'daejang-gangnam')!;
-
-  const VIPCard = ({ store, badge, side }: { store: typeof stores[0]; badge: string; side: 'left' | 'right' }) => {
-    const grad = 'linear-gradient(135deg, #9B27C8, #6B21A8)';
-    const softBg = '#FAF5FF';
-    const softBorder = '#C084FC';
-    return (
-      <motion.div
-        initial={{ opacity: 0, x: side === 'left' ? -28 : 28 }}
-        whileInView={{ opacity: 1, x: 0 }}
-        whileHover={{ y: -4, transition: { duration: 0.18 } }}
-        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-        viewport={{ once: true }}
-        className="flex-1 min-w-0 rounded-2xl overflow-hidden bg-white"
-        style={{ border: `1.5px solid ${softBorder}` }}
-      >
-        <div className="relative h-52 md:h-60 overflow-hidden">
-          <img src={store.image} alt={store.name} className="w-full h-full object-cover" />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.80))' }} />
-          <motion.div className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-white text-xs font-semibold"
-            style={{ background: grad }}
-            animate={{ scale: [1, 1.04, 1] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}>
-            👑 {badge}
-          </motion.div>
-          <div className="absolute top-3 right-3 px-2 py-1 rounded-lg" style={{ background: 'rgba(0,0,0,0.6)' }}>
-            <span style={{ fontSize: '10px', color: '#C084FC', fontWeight: 700, letterSpacing: '0.5px' }}>DAEJANG</span>
-          </div>
-          <div className="absolute bottom-0 left-0 right-0 p-4">
-            <h3 className="text-white" style={{ fontFamily: BHS, fontSize: 'clamp(18px, 3vw, 26px)', lineHeight: 1.1 }}>{store.name}</h3>
-          </div>
-        </div>
-        <div className="p-5">
-          <div className="rounded-xl p-3.5 mb-4" style={{ background: grad }}>
-            <p className="text-white/80 text-xs mb-0.5 font-semibold">🥤 칠성사이다 × 김밥대장 콜라보</p>
-            <p className="text-white text-xs leading-relaxed">{store.chilsungPairing}</p>
-          </div>
-          <div className="space-y-1.5 mb-4">
-            {[
-              { icon: <MapPin size={12} style={{ color: store.markerColor }} />, text: store.address },
-              { icon: <span>🕐</span>, text: store.hours },
-              { icon: <span>🍽️</span>, text: store.menu },
-            ].map((row, i) => (
-              <div key={i} className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="shrink-0">{row.icon}</span>
-                <span className="truncate">{row.text}</span>
-              </div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-1.5 mb-4">
-            {store.tags.map((tag) => (
-              <span key={tag} className="text-xs px-2.5 py-1 rounded-full font-medium"
-                style={{ backgroundColor: softBg, color: store.markerColor, border: `1px solid ${softBorder}` }}>
-                #{tag}
-              </span>
-            ))}
-          </div>
-          <div className="rounded-xl px-3 py-2 mb-4 text-sm font-medium text-center"
-            style={{ backgroundColor: softBg, color: store.markerColor }}>
-            {store.vibe}
-          </div>
-          <Link to="/map" className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-white text-sm font-semibold hover:opacity-90 transition-opacity"
-            style={{ background: grad }}>
-            🗺 {store.district}에서 찾아보기
-          </Link>
-        </div>
-      </motion.div>
-    );
-  };
-
-  return (
-    <section className="py-16 px-4 relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #0D0D0D 0%, #1A1A2E 60%, #0D0D0D 100%)' }}>
-      <div className="absolute inset-0 pointer-events-none" style={{
-        backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.03) 1px,transparent 1px)',
-        backgroundSize: '40px 40px',
-      }} />
-      <div className="max-w-6xl mx-auto relative">
-        <motion.div initial={{ opacity: 0, y: -14 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-10">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-4"
-            style={{ background: 'rgba(155,39,200,0.2)', border: '1px solid rgba(155,39,200,0.4)' }}>
-            <span style={{ color: '#C084FC', fontSize: '12px', fontWeight: 700 }}>👑 김밥대장 공식 추천</span>
-          </div>
-          <h2 style={{ fontFamily: BHS, fontSize: 'clamp(24px, 4vw, 40px)', color: 'white', lineHeight: 1.15 }}>
-            칠성사이다 × 김밥대장<br />
-            <span style={{ color: '#C084FC' }}>인플루언서 추천 맛집</span>
-          </h2>
-          <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '14px', marginTop: '8px', fontWeight: 400 }}>
-            김밥대장이 직접 고른 서울 김밥 로드 TOP 2 ✨
-          </p>
-        </motion.div>
-
-        <div className="flex flex-col md:flex-row gap-5 md:gap-6 mb-8">
-          {flagship && <VIPCard store={flagship} badge="플래그십 1호점" side="left" />}
-          <div className="hidden md:flex flex-col items-center justify-center shrink-0 gap-3">
-            <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 3, repeat: Infinity }}
-              className="w-12 h-12 rounded-full flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #9B27C8, #C084FC)', border: '2px solid rgba(255,255,255,0.15)' }}>
-              <span style={{ fontFamily: BHS, fontSize: '14px', color: 'white' }}>VS</span>
-            </motion.div>
-          </div>
-          <div className="md:hidden flex items-center gap-3">
-            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, #9B27C8, #C084FC)', opacity: 0.35 }} />
-            <span style={{ fontFamily: BHS, fontSize: '13px', color: 'rgba(255,255,255,0.6)' }}>VS</span>
-            <div style={{ flex: 1, height: '1px', background: 'linear-gradient(to right, #C084FC, #9B27C8)', opacity: 0.35 }} />
-          </div>
-          {gangnam && <VIPCard store={gangnam} badge="강남 핫플" side="right" />}
-        </div>
-
-        <motion.div initial={{ opacity: 0, y: 10 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-          className="rounded-2xl p-5" style={{ background: 'rgba(155,39,200,0.12)', border: '1px solid rgba(155,39,200,0.3)' }}>
-          <div className="flex flex-wrap items-center justify-center gap-4 text-center">
-            <span style={{ fontSize: '26px' }}>🎰</span>
-            <div>
-              <p style={{ fontFamily: BHS, fontSize: '15px', color: 'white' }}>방문 후 QR로 룰렛 이벤트 참여!</p>
-              <p style={{ fontSize: '13px', color: 'rgba(255,255,255,0.45)', marginTop: '2px', fontWeight: 400 }}>
-                칠성사이다 캔 또는 한정판 티셔츠(50개) 당첨 기회
-              </p>
-            </div>
-            <Link to="/event" className="px-5 py-2.5 rounded-full text-sm font-semibold text-white hover:opacity-90 transition-opacity shrink-0"
-              style={{ background: 'linear-gradient(135deg, #9B27C8, #C084FC)' }}>
-              🎰 룰렛 체험하기 →
-            </Link>
-          </div>
-        </motion.div>
-      </div>
-    </section>
-  );
-}
-
 // ─── Store Card ───────────────────────────────────────────────────────────────
 function StoreCard({ store, index }: { store: typeof stores[0]; index: number }) {
   const isSpecial = store.isSpecial;
@@ -618,7 +483,7 @@ function StoreCard({ store, index }: { store: typeof stores[0]; index: number })
         <div className="absolute top-3 left-3">
           <span className="text-xs px-2.5 py-1 rounded-full font-semibold"
             style={{ backgroundColor: isSpecial ? store.markerColor : YELLOW, color: isSpecial ? 'white' : '#1A1A1A' }}>
-            {store.categoryIcon} {isSpecial ? 'VIP · 김밥대장' : store.category}
+            {store.categoryIcon} {isSpecial ? '콜라보 · 김밥대장' : store.category}
           </span>
         </div>
         <div className="absolute top-3 right-3">
@@ -636,7 +501,7 @@ function StoreCard({ store, index }: { store: typeof stores[0]; index: number })
         {isSpecial && (
           <div className="mb-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium"
             style={{ backgroundColor: isGold ? '#FFFBEB' : '#FAF5FF', color: store.markerColor }}>
-            ✦ 칠성사이다 공식 파트너 · 2배 혜택
+            ✦ 칠성사이다 공식 콜라보 매장
           </div>
         )}
         <h3 style={{ fontWeight: 700, fontSize: '15px', color: '#1A1A1A', marginBottom: '3px' }}>{store.name}</h3>
@@ -670,7 +535,7 @@ export function HomePage() {
   return (
     <div style={{ backgroundColor: '#FFFFFF' }}>
       <HeroSection stampCount={stampCount} />
-      <VIPPartnersSection />
+      <InfluencerSection />
 
       {stampCount > 0 && (
         <section className="px-4 py-8">
@@ -714,7 +579,7 @@ export function HomePage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-12">
             <span className="inline-block text-xs px-3 py-1 rounded-full mb-3 font-semibold"
-              style={{ backgroundColor: GREEN_BG, color: GREEN }}>참여 방법</span>
+              style={{ background: GREEN_BG, color: GREEN }}>참여 방법</span>
             <h2 style={{ fontFamily: BHS, fontSize: '28px', color: '#1A1A1A' }}>3단계로 끝나는<br />스탬프 투어!</h2>
           </div>
           <div className="grid md:grid-cols-3 gap-5">

@@ -1,13 +1,24 @@
 import 'leaflet/dist/leaflet.css';
+import 'slick-carousel/slick/slick.css';
+import 'slick-carousel/slick/slick-theme.css';
 import { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { MapPin, Clock, Phone, CheckCircle2, ChevronRight, X, Navigation, Star, LocateFixed, RadioTower } from 'lucide-react';
+import Slider from 'react-slick';
+import { MapPin, Clock, Phone, CheckCircle2, ChevronRight, ChevronLeft, X, Navigation, Star, LocateFixed, RadioTower, ImageIcon } from 'lucide-react';
+import { Link } from 'react-router';
 import { stores, Store } from '../data/stores';
 import { useStamp } from '../context/StampContext';
 import { motion, AnimatePresence } from 'motion/react';
 
 const GREEN = '#2BAE4E';
+
+const GALLERY_IMGS = [
+  'https://images.unsplash.com/photo-1708388064278-707e85eaddc0?w=400&q=80',
+  'https://images.unsplash.com/photo-1708675532078-ba3995800f53?w=400&q=80',
+  'https://images.unsplash.com/photo-1768006240774-1e40deba1598?w=400&q=80',
+  'https://images.unsplash.com/photo-1769558688746-7ac36d8ce999?w=400&q=80',
+];
 
 // ── Naver Maps URL ────────────────────────────────────────────────────────────
 function naverMapUrl(store: Store) {
@@ -475,6 +486,8 @@ interface ModalProps {
 function StoreModal({ store, onClose, onVerify, alreadyCollected }: ModalProps) {
   const [tab, setTab] = useState<'info' | 'verify'>('info');
   const [verified, setVerified] = useState(alreadyCollected);
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const sliderRef = useRef<Slider | null>(null);
 
   const handleVerifySuccess = () => {
     onVerify();
@@ -488,6 +501,22 @@ function StoreModal({ store, onClose, onVerify, alreadyCollected }: ModalProps) 
     : isPurple
     ? 'linear-gradient(135deg,#9B27C8,#7B2D9C)'
     : `linear-gradient(135deg,${GREEN},#00C853)`;
+
+  // 매장별 갤러리 이미지 (메인 이미지 + 3개 추가)
+  const galleryImages = [store.image, ...GALLERY_IMGS.slice(0, 3)];
+
+  const sliderSettings = {
+    dots: false,
+    infinite: true,
+    speed: 400,
+    slidesToShow: 1,
+    slidesToScroll: 1,
+    arrows: false,
+    autoplay: true,
+    autoplaySpeed: 3500,
+    pauseOnHover: true,
+    beforeChange: (_: number, next: number) => setCurrentSlide(next),
+  };
 
   return (
     <div
@@ -506,22 +535,69 @@ function StoreModal({ store, onClose, onVerify, alreadyCollected }: ModalProps) 
         style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Hero image (tall) ── */}
-        <div className="relative h-56 sm:h-72 shrink-0">
-          <img src={store.image} alt={store.name} className="w-full h-full object-cover" />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.05) 20%, rgba(0,0,0,0.75) 100%)' }} />
+        {/* ── Hero image carousel ── */}
+        <div className="relative shrink-0" style={{ height: '260px' }}>
+          <Slider ref={sliderRef} {...sliderSettings}>
+            {galleryImages.map((img, i) => (
+              <div key={i}>
+                <div style={{ height: '260px' }} className="relative">
+                  <img src={img} alt={`${store.name} ${i + 1}`}
+                    className="w-full h-full object-cover" />
+                </div>
+              </div>
+            ))}
+          </Slider>
+
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.02) 30%, rgba(0,0,0,0.75) 100%)' }} />
+
+          {/* Prev / Next buttons */}
+          <button
+            onClick={(e) => { e.stopPropagation(); sliderRef.current?.slickPrev(); }}
+            className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+            style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)', opacity: 0.7 }}>
+            <ChevronLeft size={16} color="white" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); sliderRef.current?.slickNext(); }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+            style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(6px)', opacity: 0.7 }}>
+            <ChevronRight size={16} color="white" />
+          </button>
+
+          {/* Dot indicators */}
+          <div className="absolute bottom-14 left-1/2 -translate-x-1/2 z-10 flex items-center gap-1.5">
+            {galleryImages.map((_, i) => (
+              <button key={i}
+                onClick={(e) => { e.stopPropagation(); sliderRef.current?.slickGoTo(i); }}
+                className="rounded-full transition-all"
+                style={{
+                  width: currentSlide === i ? 18 : 6,
+                  height: 6,
+                  backgroundColor: currentSlide === i ? 'white' : 'rgba(255,255,255,0.45)',
+                }} />
+            ))}
+          </div>
+
+          {/* Photo count badge */}
+          <div className="absolute top-4 left-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-full"
+            style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)' }}>
+            <ImageIcon size={12} color="white" />
+            <span className="text-white text-xs font-black">{currentSlide + 1}/{galleryImages.length}</span>
+          </div>
 
           {/* VIP badge */}
           {store.isSpecial && (
             <motion.div
-              className="absolute top-4 left-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+              className="absolute top-4 left-24 z-10 flex items-center gap-1.5 px-3 py-1.5 rounded-full"
               style={{ background: specialGrad, border: '2px solid rgba(255,255,255,0.5)' }}
               animate={{ scale: [1, 1.04, 1] }}
               transition={{ duration: 2, repeat: Infinity }}
             >
               <Star size={12} fill="white" color="white" />
               <span className="text-white font-semibold text-xs">
-                {isGold ? 'VIP 파트너 · 김가네' : 'VIP 파트너 · 김밥대장'}
+                {isGold ? '⭐ 김가네' : '👑 김밥대장'}
               </span>
             </motion.div>
           )}
@@ -529,13 +605,13 @@ function StoreModal({ store, onClose, onVerify, alreadyCollected }: ModalProps) 
           {/* Close */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center bg-white/90 rounded-full hover:bg-white transition-colors shadow-sm"
+            className="absolute top-4 right-4 z-10 w-9 h-9 flex items-center justify-center bg-white/90 rounded-full hover:bg-white transition-colors shadow-sm"
           >
             <X size={18} className="text-gray-700" />
           </button>
 
           {/* Title */}
-          <div className="absolute bottom-4 left-5 right-16">
+          <div className="absolute bottom-4 left-5 right-16 z-10">
             <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-2"
               style={{ background: specialGrad }}>
               <span className="text-white text-xs font-semibold">🥤 칠성사이다</span>
@@ -551,9 +627,9 @@ function StoreModal({ store, onClose, onVerify, alreadyCollected }: ModalProps) 
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-white font-bold text-sm">
-                  {isGold ? '⭐ 칠성사이다 × 김가네 공식 파트너' : '👑 칠성사이다 × 김밥대장 공식 파트너'}
+                  {isGold ? '⭐ 칠성사이다 × 김가네 공식 콜라보' : '👑 칠성사이다 × 김밥대장 공식 콜라보'}
                 </p>
-                <p className="text-white/80 text-xs mt-0.5">이 가게에서 칠성사이다를 주문하면 2배 혜택!</p>
+                <p className="text-white/80 text-xs mt-0.5">칠성사이다 공식 콜라보 매장</p>
               </div>
               <div className="text-2xl shrink-0 ml-3">{isGold ? '🥇' : '💜'}</div>
             </div>
@@ -673,9 +749,20 @@ function StoreModal({ store, onClose, onVerify, alreadyCollected }: ModalProps) 
                   </div>
                   <p className="font-bold text-2xl text-gray-900 mb-2">방문 인증 완료!</p>
                   <p className="text-sm text-gray-500 mb-6">{store.name} 스탬프 적립 완료 🎉</p>
-                  <button onClick={onClose}
-                    className="w-full py-4 rounded-2xl text-white font-semibold hover:opacity-90 transition-opacity text-sm"
-                    style={{ backgroundColor: GREEN }}>확인</button>
+                  <div className="flex flex-col gap-3">
+                    {store.stampTour && (
+                      <Link
+                        to={`/event?store=${store.id}&name=${encodeURIComponent(store.name)}`}
+                        onClick={onClose}
+                        className="w-full py-4 rounded-2xl text-gray-900 font-bold text-sm flex items-center justify-center gap-2 hover:opacity-90 transition-opacity"
+                        style={{ background: 'linear-gradient(135deg, #FFD740, #FFA000)', boxShadow: '0 4px 16px rgba(255,215,64,0.4)' }}>
+                        🎰 이 매장에서 룰렛 돌리기!
+                      </Link>
+                    )}
+                    <button onClick={onClose}
+                      className="w-full py-4 rounded-2xl text-white font-semibold hover:opacity-90 transition-opacity text-sm"
+                      style={{ backgroundColor: GREEN }}>확인</button>
+                  </div>
                 </motion.div>
               ) : (
                 <LocationVerify store={store} onSuccess={handleVerifySuccess} />
@@ -703,19 +790,16 @@ export function MapPage() {
 
   const BRAND_FILTERS = [
     { key: '전체', label: '전체', icon: '🍙', color: '#1A1A1A' },
-    { key: 'daejang-stamp', label: '스탬프투어', icon: '🎯', color: '#2BAE4E' },
-    { key: 'daejang', label: '전체보기', icon: '👑', color: '#9B27C8' },
+    { key: 'visited', label: '참여완료', icon: '🥤', color: '#2BAE4E' },
   ];
   const filteredStores = filter === '전체'
     ? stores
-    : filter === 'daejang-stamp'
-    ? stores.filter((s) => s.stampTour)
-    : stores.filter((s) => s.brand === 'daejang');
+    : stores.filter((s) => isCollected(s.id));
 
   // 필터 변경 시 현재 선택된 가게가 결과에 없으면 닫기
   const handleFilterChange = (key: string) => {
     setFilter(key);
-    if (key !== '전체' && selectedStore && selectedStore.brand !== key) {
+    if (key === 'visited' && selectedStore && !isCollected(selectedStore.id)) {
       setSelectedStore(null);
     }
   };
@@ -758,9 +842,7 @@ export function MapPage() {
           <p className="text-xs text-gray-400">
             {filter === '전체'
               ? `서울 김밥 핫플 ${stores.length}곳`
-              : filter === 'daejang-stamp'
-              ? `🎯 스탬프 투어 참여점 ${filteredStores.length}곳`
-              : `👑 김밥대장 서울 ${filteredStores.length}개 지점`}
+              : `🥤 참여완료 매장 ${filteredStores.length}곳`}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -787,10 +869,8 @@ export function MapPage() {
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full shrink-0 transition-all active:scale-95"
                 style={active
                   ? {
-                      background: key === 'daejang-stamp'
+                      background: key === 'visited'
                         ? 'linear-gradient(135deg,#2BAE4E,#00C853)'
-                        : key === 'daejang'
-                        ? 'linear-gradient(135deg,#9B27C8,#7B2D9C)'
                         : 'linear-gradient(135deg,#1A1A1A,#374151)',
                       color: 'white',
                       fontWeight: 900,
@@ -816,35 +896,9 @@ export function MapPage() {
               </button>
             );
           })}
-
-          {/* Separator + legend chips */}
-          <div className="w-px h-5 bg-gray-200 mx-1 shrink-0" />
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E8A000', fontSize: '8px' }}>⭐</div>
-            <span className="text-xs text-gray-400">골드</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center" style={{ backgroundColor: '#9B27C8', fontSize: '8px' }}>👑</div>
-            <span className="text-xs text-gray-400">퍼플</span>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <div className="w-3.5 h-3.5 rounded-full flex items-center justify-center text-xs" style={{ backgroundColor: '#E8F8EF' }}>🥤</div>
-            <span className="text-xs text-gray-400">완료</span>
-          </div>
         </div>
 
-        {/* Brand description strip */}
-        {filter !== '전체' && (
-          <div className="mt-1.5 flex items-center gap-2 px-2 py-1.5 rounded-xl"
-            style={{ backgroundColor: filter === 'daejang-stamp' ? '#E8F8EF' : '#FAF5FF' }}>
-            <span className="text-xs">{filter === 'daejang-stamp' ? '🎯' : '👑'}</span>
-            <p className="text-xs font-black" style={{ color: filter === 'daejang-stamp' ? '#2BAE4E' : '#7B2D9C' }}>
-              {filter === 'daejang-stamp'
-                ? '스탬프 투어 참여 10개 매장 표시 중 · QR로 룰렛 이벤트 참여 가능!'
-                : '김밥대장 서울 전 지점 표시 중 · 방문 인증으로 스탬프 적립!'}
-            </p>
-          </div>
-        )}
+        {/* Brand description strip - removed */}
       </div>
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
@@ -857,7 +911,7 @@ export function MapPage() {
           z-20 md:z-auto
         `} style={{ width: '100%', maxWidth: '320px', borderColor: '#F3F4F6' }}>
 
-          {/* Legend — desktop only (already shown in global bar for mobile) */}
+          {/* Legend — desktop only */}
           <div className="hidden md:flex px-3 py-2 border-b shrink-0 items-center gap-3" style={{ borderColor: '#F9FAFB', backgroundColor: '#FAFBFF' }}>
             <div className="flex items-center gap-1">
               <div className="w-4 h-4 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: '#9B27C8', fontSize: '9px' }}>👑</div>
@@ -868,8 +922,8 @@ export function MapPage() {
               <span className="text-xs text-gray-500">방문완료</span>
             </div>
             <div className="flex items-center gap-1">
-              <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: '#E8F8EF', fontSize: '9px' }}>🎯</div>
-              <span className="text-xs text-gray-500">스탬프투어</span>
+              <div className="w-4 h-4 rounded-full flex items-center justify-center" style={{ backgroundColor: '#0057B8', fontSize: '9px', color: 'white', fontWeight: 700 }}>N</div>
+              <span className="text-xs text-gray-500">미방문</span>
             </div>
           </div>
 
@@ -902,9 +956,6 @@ export function MapPage() {
                       {collected && <span className="text-xs font-black shrink-0" style={{ color: GREEN }}>🥤완료</span>}
                     </div>
                     <p className="text-xs text-gray-400 mt-0.5">{store.district} · {store.category}</p>
-                    {store.isSpecial && (
-                      <p className="text-xs font-black mt-0.5" style={{ color: store.markerColor }}>VIP 파트너 · 2배 혜택</p>
-                    )}
                   </div>
                   <span className="text-xs text-gray-300 shrink-0 font-black">#{String(idx).padStart(2, '0')}</span>
                 </div>
@@ -949,7 +1000,7 @@ export function MapPage() {
                   <div className="px-3 py-1.5 flex items-center gap-2"
                     style={{ background: selectedStore.markerColor === '#E8A000' ? 'linear-gradient(90deg,#F59E0B,#D97706)' : 'linear-gradient(90deg,#9B27C8,#7B2D9C)' }}>
                     <span className="text-white text-xs font-black">
-                      {selectedStore.markerColor === '#E8A000' ? '⭐ VIP · 김가네 공식 파트너' : '👑 VIP · 김밥대장 공식 파트너'}
+                      {selectedStore.markerColor === '#E8A000' ? '⭐ 김가네 콜라보' : '👑 김밥대장 콜라보'}
                     </span>
                   </div>
                 )}

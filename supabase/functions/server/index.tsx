@@ -175,6 +175,8 @@ app.post("/make-server-66d4cc36/auth/social", async (c) => {
     console.log(`Social login success: ${provider}, user: ${userId}`);
     return c.json({
       access_token: signInData.access_token,
+      refresh_token: signInData.refresh_token,
+      expires_in: signInData.expires_in,
       user: { id: userId, email: demoEmail, user_metadata: { name: displayName, provider } },
     });
   } catch (err) {
@@ -526,7 +528,7 @@ app.post("/make-server-66d4cc36/roulette/coupon/shipping", async (c) => {
     // Verify coupon belongs to user and is tshirt type
     const coupons: Coupon[] = (await kv.get(`coupons:${user.id}`)) ?? [];
     const coupon = coupons.find((c) => c.couponId === couponId);
-    if (!coupon) return c.json({ error: "교환권을 찾을 수 없습니다." }, 404);
+    if (!coupon) return c.json({ error: "증정권을 찾을 수 없습니다." }, 404);
     if (coupon.prizeId !== 'tshirt') return c.json({ error: "티셔츠 증정권이 아닙니다." }, 400);
     if (coupon.isUsed) return c.json({ error: "이미 사용된 증정권입니다." }, 400);
 

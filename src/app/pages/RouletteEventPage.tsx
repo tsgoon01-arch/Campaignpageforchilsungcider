@@ -9,9 +9,8 @@ const YELLOW = '#FFD740';
 const DEVICE_ID_KEY = 'chilsung-device-id';
 const PENDING_PRIZE_KEY = 'pending-roulette-prize';
 
-// 1 official + 2 re-spins = 3 total per store per day
-const MAX_SPINS = 3;
-const MAX_RESPINS = 2;
+// 1 spin per store per day (no re-spins)
+const MAX_SPINS = 1;
 
 // ── Device / Auth helpers ─────────────────────────────────────────────────────
 function getOrCreateDeviceId(): string {
@@ -26,10 +25,21 @@ function getAuthToken(): string | null {
   try {
     const raw = localStorage.getItem('chilsung-auth-session');
     if (!raw) return null;
-    return JSON.parse(raw)?.access_token ?? null;
+    const token = JSON.parse(raw)?.access_token ?? null;
+    // demo-token은 실제 Supabase 토큰이 아니므로 API에는 사용 불가
+    if (token === 'demo-token') return null;
+    return token;
   } catch { return null; }
 }
-function isLoggedIn(): boolean { return !!getAuthToken(); }
+function isLoggedIn(): boolean {
+  // 데모 로그인도 로그인으로 인정 (UI 표시용)
+  try {
+    const raw = localStorage.getItem('chilsung-auth-session');
+    if (!raw) return false;
+    const session = JSON.parse(raw);
+    return !!(session?.user || session?.access_token);
+  } catch { return false; }
+}
 
 // Short voucher code from full id
 function shortCode(id: string) {
@@ -126,35 +136,36 @@ function RouletteWheel({ rotation, isSpinning }: { rotation: number; isSpinning:
 
 // ── Spin Chance Badge ─────────────────────────────────────────────────────────
 function SpinChanceBadge({ spinsToday }: { spinsToday: number }) {
-  const officialDone = spinsToday >= 1;
-  const respinsUsed = Math.max(0, spinsToday - 1);
-  const respinsLeft = MAX_RESPINS - respinsUsed;
-  return (
-    null
+  const done = spinsToday >= 1;
+  return done ? (
+    <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black"
+      style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: '#9CA3AF', border: '1px solid rgba(255,255,255,0.1)' }}>
+      ✅ 오늘 참여 완료
+    </div>
+  ) : (
+    <div className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-black"
+      style={{ backgroundColor: `${GREEN}22`, color: GREEN, border: `1px solid ${GREEN}44` }}>
+      🎰 1회 참여 가능
+    </div>
   );
 }
 
 // ── Prize Result Modal ────────────────────────────────────────────────────────
 function PrizeModal({
-  prize, couponId, storeId, storeName, spinsToday, tshirtRemaining,
-  isLoggedInUser, onClose, onSpinAgain, onGoMyPage, onLoginToClaim,
+  prize, couponId, storeName, tshirtRemaining,
+  isLoggedInUser, onClose, onGoMyPage, onLoginToClaim,
 }: {
   prize: PrizeResult;
   couponId: string;
-  storeId: string;
   storeName: string;
-  spinsToday: number; // AFTER this spin
   tshirtRemaining: number;
   isLoggedInUser: boolean;
   onClose: () => void;
-  onSpinAgain: () => void;
   onGoMyPage: () => void;
   onLoginToClaim: () => void;
 }) {
   const [step, setStep] = useState<'reveal' | 'claimed'>('reveal');
-  const respinsLeft = spinsToday >= 1 ? MAX_RESPINS - (spinsToday - 1) : 0;
   const isTshirt = prize.id === 'tshirt';
-  const spinLabel = spinsToday === 1 ? '🎰 공식 참여' : `🔄 다시 돌리기 ${spinsToday - 1}회차`;
   const code = shortCode(couponId);
 
   const handleClaim = () => {
@@ -184,12 +195,6 @@ function PrizeModal({
               animate={{ y: [0, -18, 0], opacity: [0.7, 1, 0.7] }}
               transition={{ duration: 1 + i * 0.12, repeat: Infinity, delay: i * 0.1 }} />
           ))}
-
-          {/* Spin type badge */}
-          <div className="absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-black"
-            style={{ backgroundColor: 'rgba(0,0,0,0.3)', color: 'rgba(255,255,255,0.9)' }}>
-            {spinLabel}
-          </div>
 
           <div className="pt-8 pb-2 text-center">
             <AnimatePresence mode="wait">
@@ -292,51 +297,19 @@ function PrizeModal({
                 <p className="text-xs text-gray-500 mt-1">마이페이지 &gt; 내 증정권에서 확인 가능</p>
               </div>
 
-              {/* Next action: 다시 돌리기 or 완료 */}
               <div className="space-y-2.5">
-                {respinsLeft > 0 ? (
-                  <>
-                    <motion.button onClick={onSpinAgain}
-                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                      className="w-full py-3.5 rounded-2xl font-black text-white flex items-center justify-center gap-2 text-sm"
-                      style={{ background: 'linear-gradient(135deg,#FF6B6B,#EF4444)', boxShadow: '0 4px 16px rgba(239,68,68,0.4)' }}>
-                      🔄 한 번 더 돌리기!
-                      <span className="px-2 py-0.5 rounded-full text-xs"
-                        style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}>
-                        {respinsLeft}회 남음
-                      </span>
-                    </motion.button>
-                    <button onClick={onGoMyPage}
-                      className="w-full py-3 rounded-2xl font-black border-2 text-sm flex items-center justify-center gap-2"
-                      style={{ borderColor: GREEN, color: GREEN }}>
-                      🎫 마이페이지에서 증정권 확인
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <motion.button onClick={onGoMyPage}
-                      whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
-                      className="w-full py-3.5 rounded-2xl font-black text-gray-900 flex items-center justify-center gap-2 text-sm"
-                      style={{ background: `linear-gradient(135deg, ${YELLOW}, #FFA000)`, boxShadow: `0 4px 16px rgba(255,215,64,0.5)` }}>
-                      🎫 마이페이지에서 증정권 확인
-                    </motion.button>
-                    <button onClick={onClose}
-                      className="w-full py-3 rounded-2xl font-black border-2 text-sm text-gray-400"
-                      style={{ borderColor: '#E5E7EB' }}>
-                      오늘 모든 기회 완료 · 내일 또 도전해요! 🌟
-                    </button>
-                  </>
-                )}
+                <motion.button onClick={onGoMyPage}
+                  whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
+                  className="w-full py-3.5 rounded-2xl font-black text-gray-900 flex items-center justify-center gap-2 text-sm"
+                  style={{ background: `linear-gradient(135deg, ${YELLOW}, #FFA000)`, boxShadow: `0 4px 16px rgba(255,215,64,0.5)` }}>
+                  🎫 마이페이지에서 증정권 확인
+                </motion.button>
+                <button onClick={onClose}
+                  className="w-full py-3 rounded-2xl font-black border-2 text-sm text-gray-400"
+                  style={{ borderColor: '#E5E7EB' }}>
+                  닫기
+                </button>
               </div>
-
-              {respinsLeft > 0 && (
-                <div className="mt-3 px-3 py-2.5 rounded-xl"
-                  style={{ backgroundColor: '#FFF1F2', border: '1px solid #FECDD3' }}>
-                  <p className="text-xs text-red-500 text-center font-black">
-                    💡 다시 돌리면 추가 증정권을 받을 수 있어요!
-                  </p>
-                </div>
-              )}
             </motion.div>
           )}
 
@@ -369,8 +342,6 @@ export function RouletteEventPage() {
   const deviceId = getOrCreateDeviceId();
   const authToken = getAuthToken();
   const loggedIn = isLoggedIn();
-  const respinsLeft = spinsToday >= 1 ? MAX_RESPINS - (spinsToday - 1) : 0;
-  const isOfficialSpin = spinsToday === 0;
 
   useEffect(() => {
     fetch(`${SERVER_URL}/roulette/stock`, { headers: { Authorization: `Bearer ${publicAnonKey}` } })
@@ -455,12 +426,6 @@ export function RouletteEventPage() {
     }
   };
 
-  const handleSpinAgain = () => {
-    setShowModal(false);
-    setCurrentPrize(null);
-    setTimeout(() => handleSpin(), 400);
-  };
-
   const handleGoMyPage = () => navigate('/mypage');
   const handleLoginToClaim = () => navigate(`/login?return=/mypage&claim=1`);
 
@@ -501,9 +466,7 @@ export function RouletteEventPage() {
             style={{ fontWeight: 900, fontFamily: "'Black Han Sans', sans-serif" }}>
             행운을 돌려봐!
           </h1>
-          <p className="text-gray-300 text-sm mb-4">
-            <span className="font-black" style={{ color: YELLOW }}>{storeName}</span> 방문 기념 매장 증정권
-          </p>
+          <p className="text-gray-300 text-sm mb-4"><span className="font-black" style={{ color: YELLOW }}>{storeName}</span></p>
           <div className="flex justify-center">
             <SpinChanceBadge spinsToday={spinsToday} />
           </div>
@@ -559,8 +522,8 @@ export function RouletteEventPage() {
             <div className="rounded-2xl px-5 py-5 mb-4"
               style={{ backgroundColor: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)' }}>
               <p className="text-2xl mb-2">✅</p>
-              <p className="text-white font-black text-base mb-1">오늘 모든 기회 사용 완료!</p>
-              <p className="text-gray-400 text-sm">1회 참여 + 다시 돌리기 2회 완료</p>
+              <p className="text-white font-black text-base mb-1">오늘 참여 완료!</p>
+              <p className="text-gray-400 text-sm">이 매장에서의 오늘 룰렛을 이미 돌렸어요</p>
               <p className="text-gray-500 text-xs mt-1">내일 다시 도전해주세요! 🌟</p>
             </div>
             {todayResults.length > 0 && (
@@ -571,7 +534,7 @@ export function RouletteEventPage() {
                     <span className="text-xl">{r.prizeEmoji}</span>
                     <div className="text-left flex-1">
                       <p className="text-white text-xs font-black">{r.prizeName}</p>
-                      <p className="text-gray-500 text-xs">{i === 0 ? '🎰 공식 참여' : `🔄 다시 돌리기 ${i}회`}</p>
+                      <p className="text-gray-500 text-xs">🎰 오늘 당첨</p>
                     </div>
                     <span className="text-xs px-2 py-0.5 rounded-full font-black text-white"
                       style={{ backgroundColor: r.prizeColor + 'AA' }}>받음</span>
@@ -589,15 +552,14 @@ export function RouletteEventPage() {
           <motion.button onClick={handleSpin} disabled={isSpinning}
             className="relative px-12 py-4 rounded-2xl text-lg font-black shadow-2xl"
             style={{
-              ...(isSpinning ? { background: 'linear-gradient(135deg,#444,#666)', color: '#888' }
-                : isOfficialSpin
-                ? { background: `linear-gradient(135deg,${YELLOW},#FFA000)`, color: '#1a1a1a', boxShadow: `0 0 24px rgba(255,215,64,0.45)` }
-                : { background: 'linear-gradient(135deg,#FF6B6B,#EF4444)', color: 'white', boxShadow: '0 0 24px rgba(239,68,68,0.4)' }),
+              ...(isSpinning
+                ? { background: 'linear-gradient(135deg,#444,#666)', color: '#888' }
+                : { background: `linear-gradient(135deg,${YELLOW},#FFA000)`, color: '#1a1a1a', boxShadow: `0 0 24px rgba(255,215,64,0.45)` }),
               minWidth: 220,
             }}
             whileHover={!isSpinning ? { scale: 1.05, y: -3 } : {}}
             whileTap={!isSpinning ? { scale: 0.97 } : {}}
-            animate={!isSpinning && isOfficialSpin
+            animate={!isSpinning
               ? { boxShadow: [`0 0 0px ${YELLOW}00`, `0 0 28px ${YELLOW}90`, `0 0 0px ${YELLOW}00`] }
               : {}
             }
@@ -605,15 +567,9 @@ export function RouletteEventPage() {
             {isSpinning ? (
               <span className="flex items-center gap-2">
                 <motion.span animate={{ rotate: 360 }} transition={{ duration: 0.7, repeat: Infinity, ease: 'linear' }}>⚙️</motion.span>
-                돌아가는 ��...
+                돌아가는 중...
               </span>
-            ) : isOfficialSpin ? '🎰 참여하기!' : (
-              <span className="flex items-center gap-2">
-                🔄 다시 돌리기!
-                <span className="px-2 py-0.5 rounded-full text-xs font-black"
-                  style={{ backgroundColor: 'rgba(0,0,0,0.2)' }}>{respinsLeft}회 남음</span>
-              </span>
-            )}
+            ) : '🎰 참여하기!'}
           </motion.button>
         )}
 
@@ -622,20 +578,19 @@ export function RouletteEventPage() {
           <div className="mt-5 w-full max-w-xs rounded-2xl overflow-hidden"
             style={{ backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
             <div className="px-4 py-2 border-b" style={{ borderColor: 'rgba(255,255,255,0.07)' }}>
-              <p className="text-xs font-black text-center" style={{ color: YELLOW }}>오늘 이 매장 참여 방식</p>
+              <p className="text-xs font-black text-center" style={{ color: YELLOW }}>참여 방법</p>
             </div>
             <div className="px-4 py-3 flex items-center justify-around">
               {[
-                { icon: '🎰', label: '공식 1회', sub: '증정권 발급', color: YELLOW },
-                { icon: '+', label: '', sub: '', color: 'rgba(255,255,255,0.2)' },
-                { icon: '🔄', label: '다시 돌리기', sub: '× 2회', color: '#FF6B6B' },
-                { icon: '=', label: '', sub: '', color: 'rgba(255,255,255,0.2)' },
-                { icon: '🏆', label: '총 3회', sub: '기회', color: 'white' },
+                { icon: '📍', label: '매장 방문', color: YELLOW },
+                { icon: '→', label: '', color: 'rgba(255,255,255,0.2)' },
+                { icon: '🎰', label: '룰렛 참여', color: GREEN },
+                { icon: '→', label: '', color: 'rgba(255,255,255,0.2)' },
+                { icon: '🎫', label: '증정권 받기', color: 'white' },
               ].map((item, i) => (
                 <div key={i} className="flex flex-col items-center">
                   <span style={{ fontSize: item.label ? 20 : 18, color: item.color, fontWeight: 700 }}>{item.icon}</span>
                   {item.label && <p className="text-white text-xs font-black mt-0.5" style={{ fontSize: 9 }}>{item.label}</p>}
-                  {item.sub && <p style={{ fontSize: 9, color: item.color, fontWeight: 700 }}>{item.sub}</p>}
                 </div>
               ))}
             </div>
@@ -644,7 +599,7 @@ export function RouletteEventPage() {
 
         {/* Footer links */}
         <div className="mt-6 text-center space-y-2">
-          <p className="text-gray-600 text-xs">매장 방문당 1회 · 다시 돌리기 2회 · 데모 버전</p>
+          <p className="text-gray-600 text-xs">매장당 하루 1회 참여 · 데모 버전</p>
           {!loggedIn && (
             <p className="text-xs" style={{ color: '#FCD34D' }}>
               💡 증정권 저장은 로그인 후 마이페이지에서 확인
@@ -665,13 +620,10 @@ export function RouletteEventPage() {
           <PrizeModal
             prize={currentPrize}
             couponId={currentCouponId}
-            storeId={storeId}
             storeName={storeName}
-            spinsToday={spinsToday}
             tshirtRemaining={tshirtRemaining}
             isLoggedInUser={loggedIn}
             onClose={() => setShowModal(false)}
-            onSpinAgain={handleSpinAgain}
             onGoMyPage={handleGoMyPage}
             onLoginToClaim={handleLoginToClaim}
           />

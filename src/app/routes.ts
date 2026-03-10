@@ -8,6 +8,7 @@ import { LoginPage } from './pages/LoginPage';
 import { SignupPage } from './pages/SignupPage';
 import { RouletteEventPage } from './pages/RouletteEventPage';
 import { MyPage } from './pages/MyPage';
+import { RewardsPage } from './pages/RewardsPage';
 
 export const router = createBrowserRouter([
   // Auth pages (no Navbar/Footer)
@@ -26,6 +27,7 @@ export const router = createBrowserRouter([
       { path: 'map', Component: MapPage },
       { path: 'stamps', Component: StampPage },
       { path: 'prizes', Component: PrizePage },
+      { path: 'rewards', Component: RewardsPage },
       { path: 'mypage', Component: MyPage },
     ],
   },

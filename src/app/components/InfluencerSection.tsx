@@ -1,26 +1,27 @@
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { ExternalLink, Users, Play, Star } from 'lucide-react';
+import { Users, Play, Star, Instagram, MapPin } from 'lucide-react';
 import influencerImg from 'figma:asset/1882e03ea2fcea99d8f758424a449c8a7fd12172.png';
 
 const GREEN = '#2BAE4E';
 const YELLOW = '#FFD740';
 const BHS = "'Black Han Sans', sans-serif";
 
-const YT_CHANNEL = 'https://www.youtube.com/channel/UC3XJ27iPovHY4RdDvNa-d8w';
-const NAMU_WIKI = 'https://namu.wiki/w/%EB%B0%A5%ED%92%80%EC%9D%B4%EB%84%A4%20%EA%B9%80%EB%B0%A5%EC%A7%91';
+const YT_CHANNEL = 'https://www.youtube.com/@kimbapboss';
+const INSTA_URL = 'https://www.instagram.com/gimbapzip/';
+const GIMBAP_ROAD = 'https://neer.by/gimbapzip';
 
 const STATS = [
-  { label: '구독자', value: '190만+', icon: Users, color: '#EF4444' },
-  { label: '조회수', value: '8.7억+', icon: Play, color: '#7C3AED' },
+  { label: '인스타그램', value: '24만+', icon: Users, color: '#E1306C' },
+  { label: '유튜브', value: '8.25만', icon: Play, color: '#FF0000' },
   { label: '콘텐츠', value: '김밥 전문', icon: Star, color: '#E8A000' },
 ];
 
 const HIGHLIGHTS = [
-  { emoji: '🍙', text: '전국 김밥집 300곳+ 리뷰' },
-  { emoji: '🔥', text: '한 입 리뷰 시리즈 누적 3억 뷰' },
-  { emoji: '📍', text: '서울 김밥 맛집 로드맵 공개' },
-  { emoji: '🤝', text: '칠성사이다 공식 콜라보 파트너' },
+  { emoji: '⛰️', text: "'19~ 등산 인플루언서 시작" },
+  { emoji: '🍴', text: "'20~ 푸글 음식 크리에이터" },
+  { emoji: '🍙', text: "'21~ 김밥집 인스타그램 개설" },
+  { emoji: '🎬', text: "'23~ 유튜브 김밥대장 채널 오픈" },
 ];
 
 function YoutubeSvg() {
@@ -71,8 +72,8 @@ export function InfluencerSection() {
             <span style={{ color: YELLOW }}>칠성사이다 스탬프 투어</span>
           </h2>
           <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '14px', marginTop: '10px', fontWeight: 400, maxWidth: 480, marginInline: 'auto', lineHeight: 1.7 }}>
-            190만 구독자의 김밥 전문 유튜버 "밥풀이네 김밥집"이<br className="hidden sm:block" />
-            직접 엄선한 서울 김밥 핫플 10곳을 소개합니다
+            인스타그램 24만 · 유튜브 8.25만 팔로워의 김밥 전문 크리에이터가<br className="hidden sm:block" />
+            직접 엄선한 서울 김밥 핫플 20곳을 소개합니다
           </p>
         </motion.div>
 
@@ -126,23 +127,11 @@ export function InfluencerSection() {
                 <h3 className="text-white mb-3" style={{ fontWeight: 800, fontSize: 18 }}>
                   "김밥 하나로 세상을 행복하게" 🍙
                 </h3>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, lineHeight: 1.8 }}>
-                  유튜브 채널 <strong style={{ color: '#FCA5A5' }}>"밥풀이네 김밥집"</strong>을 운영하는 김밥 전문 크리에이터.
-                  전국 방방곡곡의 김밥집을 직접 방문하며 솔직하고 재미있는 리뷰로 190만 구독자의 사랑을 받고 있습니다.
-                  이번 칠성사이다 스탬프 투어에서 김밥대장이 직접 엄선한 서울 김밥 맛집 10곳을 만나보세요!
-                </p>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14, lineHeight: 1.8 }}>2021년 인스타그램 <strong style={{ color: '#FCA5A5' }}>@gimbapzip</strong> 계정을 개설하며 김밥 전문 크리에이터로 본격 활동을 시작했고, 2023년부터는 유튜브 <strong style={{ color: '#FCA5A5' }}>김밥대장</strong> 채널까지 운영하며 전국 김밥 맛집을 소개하고 있습니다. 이번 칠성사이다 스탬프 투어에서 김밥대장이 직접 엄선한 서울 김밥 맛집 20곳을 만나보세요!</p>
               </div>
 
               {/* Highlights */}
-              <div className="grid grid-cols-2 gap-2 mb-6">
-                {HIGHLIGHTS.map((h) => (
-                  <div key={h.text} className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-                    style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                    <span style={{ fontSize: 18 }}>{h.emoji}</span>
-                    <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 12, fontWeight: 600 }}>{h.text}</span>
-                  </div>
-                ))}
-              </div>
+              
 
               {/* CTA buttons */}
               <div className="flex flex-wrap gap-3">
@@ -151,10 +140,15 @@ export function InfluencerSection() {
                   style={{ background: '#FF0000', fontWeight: 700 }}>
                   <YoutubeSvg /> 유튜브 채널 보기
                 </a>
-                <a href={NAMU_WIKI} target="_blank" rel="noopener noreferrer"
+                <a href={INSTA_URL} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm hover:opacity-90 transition-opacity"
+                  style={{ background: '#E1306C', color: 'white', fontWeight: 600 }}>
+                  <Instagram size={14} /> 인스타그램
+                </a>
+                <a href={GIMBAP_ROAD} target="_blank" rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm hover:opacity-90 transition-opacity"
                   style={{ background: 'rgba(255,255,255,0.1)', border: '1.5px solid rgba(255,255,255,0.25)', color: 'white', fontWeight: 600 }}>
-                  <ExternalLink size={14} /> 나무위키
+                  <MapPin size={14} /> 김밥 맛집 로드맵
                 </a>
                 <Link to="/map"
                   className="inline-flex items-center gap-2 px-5 py-3 rounded-full text-sm text-gray-900 hover:opacity-90 transition-opacity"

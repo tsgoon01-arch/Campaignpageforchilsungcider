@@ -35,7 +35,7 @@ const HERO_SLIDES = [
       <>
         칠성사이다 1+1 증정권 또는{' '}
         <strong style={{ color: YELLOW, fontWeight: 700 }}>한정판 티셔츠(50개)</strong>를 받아가세요!<br />
-        매장 방문 후 QR 스캔 · <strong style={{ color: YELLOW }}>1회 참여 + 다시 돌리기 2회!</strong>
+        매장 방문 후 QR 스캔 · <strong style={{ color: YELLOW }}>100% 당첨</strong>
       </>
     ),
     isRoulette: true,
@@ -52,7 +52,7 @@ const HERO_SLIDES = [
     line2: '리워드!',
     desc: (
       <>
-        4곳 방문 <strong style={{ color: YELLOW, fontWeight: 700 }}>👕 티셔�� 77명 추첨</strong> · 7곳 방문{' '}
+        4곳 방문 <strong style={{ color: YELLOW, fontWeight: 700 }}>👕 티셔츠 77명 추첨</strong> · 7곳 방문{' '}
         <strong style={{ color: '#86EFAC', fontWeight: 700 }}>🚂 해랑열차 1명 추첨</strong>
         <br />김밥집을 방문하면 스탬프가 자동으로 쌓여요!
       </>
